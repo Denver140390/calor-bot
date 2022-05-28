@@ -54,14 +54,7 @@ def start(update: Update, context: CallbackContext) -> str:
     # and a string as callback_data
     # The keyboard is a list of button rows, where each row is in turn
     # a list (hence `[[...]]`).
-    keyboard = [
-        [
-            InlineKeyboardButton(EAT, callback_data=str(EAT)),
-            InlineKeyboardButton(ADD_NEW_FOOD, callback_data=str(ADD_NEW_FOOD)),
-            InlineKeyboardButton(EDIT_FOOD, callback_data=str(EDIT_FOOD)),
-            InlineKeyboardButton(SHOW_EATEN_FOOD, callback_data=str(SHOW_EATEN_FOOD))
-        ]
-    ]
+    keyboard = init_keyboard()
     reply_markup = InlineKeyboardMarkup(keyboard)
     # Send message with text and appended InlineKeyboard
     update.message.reply_text(
@@ -76,13 +69,7 @@ def start_over(update: Update, context: CallbackContext) -> str:
     # and a string as callback_data
     # The keyboard is a list of button rows, where each row is in turn
     # a list (hence `[[...]]`).
-    keyboard = [
-        [
-            InlineKeyboardButton(EAT, callback_data=str(EAT)),
-            InlineKeyboardButton(ADD_NEW_FOOD, callback_data=str(ADD_NEW_FOOD)),
-            InlineKeyboardButton(EDIT_FOOD, callback_data=str(EDIT_FOOD)),
-        ]
-    ]
+    keyboard = init_keyboard()
     reply_markup = InlineKeyboardMarkup(keyboard)
     # Send message with text and appended InlineKeyboard
     update.message.reply_text(
@@ -90,6 +77,18 @@ def start_over(update: Update, context: CallbackContext) -> str:
         reply_markup=reply_markup)
     # Tell ConversationHandler that we're in state `FIRST` now
     return START_ROUTES
+
+
+def init_keyboard():
+    keyboard = [
+        [
+            InlineKeyboardButton(EAT, callback_data=str(EAT)),
+            InlineKeyboardButton(ADD_NEW_FOOD, callback_data=str(ADD_NEW_FOOD)),
+            InlineKeyboardButton(EDIT_FOOD, callback_data=str(EDIT_FOOD)),
+            InlineKeyboardButton(SHOW_EATEN_FOOD, callback_data=str(SHOW_EATEN_FOOD))
+        ]
+    ]
+    return keyboard
 
 
 def eat(update: Update, context: CallbackContext) -> str:
