@@ -14,7 +14,7 @@ from telegram.ext import (
     ConversationHandler,
 )
 import logging
-import commands
+import os
 
 # Stages
 START_ROUTES, END_ROUTES = range(2)
@@ -182,6 +182,16 @@ def edit_food(update: Update, context: CallbackContext) -> str:
 #     [context.bot.send_message(chat_id=update.effective_chat.id, text=response) for response in response_messages]
 
 
+def process_message(update: Update, context: CallbackContext):
+    text = update.message.text
+    weight = try_parse_decimal(text)
+    if not weight:
+        context.bot.send_message(chat_id=update.effective_chat.id, text='Unknown message pattern.')
+        return
+    response_messages = service.add_weight(weight)
+    [context.bot.send_message(chat_id=update.effective_chat.id, text=response) for response in response_messages]
+
+
 def echo(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=update.effective_chat.id, text=update.message.text)
 
@@ -190,7 +200,7 @@ def unknown(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=update.effective_chat.id, text="Sorry, I didn't understand that command.")
 
 
-updater = Updater(token='5282558974:AAGnCHz7mmX3486NDg7_in_Rh1HwUmMn6uI')
+updater = Updater(token=os.environ['TELEGRAMTOKEN'])
 dispatcher = updater.dispatcher
 
 # dispatcher.add_handler(CommandHandler('food', food))
@@ -199,7 +209,7 @@ dispatcher = updater.dispatcher
 # echo_handler = MessageHandler(Filters.text & (~Filters.command), echo)
 # dispatcher.add_handler(echo_handler)
 
-# dispatcher.add_handler(MessageHandler(Filters.text, process_message))
+# dispatcher.add_handler(MessageHandler(~Filters.command, process_message))
 # dispatcher.add_handler(MessageHandler(Filters.command, unknown))
 
 dispatcher.add_handler(ConversationHandler(

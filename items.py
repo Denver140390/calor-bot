@@ -3,8 +3,15 @@ from datetime import datetime
 from decimal import Decimal
 
 
-@dataclass
+@dataclass(frozen=True)
+class Weight:
+    weight_kilograms: Decimal
+    added_on: datetime
+
+
+@dataclass(frozen=True)
 class FoodItem:
+    id: int
     name: str
     calories_per_100_grams: Decimal
     added_on: datetime
@@ -13,7 +20,7 @@ class FoodItem:
         return f'{self.name}, {self.calories_per_100_grams or "UNKNOWN"} cal per 100 grams'
 
 
-@dataclass
+@dataclass(frozen=True)
 class EatenItem:
     item: FoodItem
     weight_grams: Decimal

@@ -1,19 +1,13 @@
-from dataclasses import dataclass
 from datetime import datetime, date, timedelta
 from decimal import Decimal
 from typing import List, Optional
 import commands
-from Items import FoodItem, EatenItem
+from repository import Repository
+from items import FoodItem, EatenItem, Weight
 
 
 class Service:
     START_DATE_OFFSET_HOURS = 3
-
-    def __init__(self):
-        # TODO store by user id
-        self.weights: List[Decimal] = []
-        self.food_items: List[FoodItem] = []
-        self.eaten_items: List[EatenItem] = []
 
     @staticmethod
     def now() -> datetime:
@@ -23,20 +17,19 @@ class Service:
     def today() -> date:
         return date.today()  # TODO client timezone
 
-    def get_weights_desc(self) -> tuple[Decimal]:
-        return tuple(self.weights)
-
-    def add_weight(self, command: commands.AddWeightCommand) -> List[str]:
-        self.weights.append(command.weight)
-        response = f'Your current weight is {command.weight} kg. Got it!'
-        if len(self.weights) == 1:
+    def add_weight(self, weight_kilograms: Decimal) -> List[str]:
+        weight = Weight(weight_kilograms, self.now())
+        Repository().add_weight(weight)
+        weights = Repository().get_weights_desc()
+        response = f'Your current weight is {weight.weight_kilograms} kg. Got it!'
+        if len(weights) == 1:
             return [response]
         else:
-            return [f'{response} Yesterday it was {self.weights[-2]} kg.']
+            # TODO can be multiple entries per day, gotta select first per yesterday
+            return [f'{response} Yesterday it was {weights[-2].weight_kilograms} kg.']
 
-    def add_food_item(self, food_item_name: str, calories_per_100_grams: Decimal) -> FoodItem:
-        food_item = FoodItem(food_item_name, calories_per_100_grams=calories_per_100_grams, added_on=self.now())
-        self.food_items.append(food_item)
+    def add_food_item(self, name: str, calories_per_100_grams: Decimal) -> FoodItem:
+        food_item = Repository().add_food_item(name, calories_per_100_grams, self.now())
         return food_item
 
     def add_weighted_eaten_item(self, item: FoodItem, weight_grams: Decimal) -> None:
@@ -63,7 +56,7 @@ class Service:
         #     responses.append(f'Found existing food entry: {item}, counting on that.')
 
         eaten_item = EatenItem(item, weight_grams=weight_grams, added_on=now)
-        self.eaten_items.append(eaten_item)
+        Repository().add_eaten_item(eaten_item)
 
     def add_total_calories_eaten_item(self, command: commands.AddTotalCaloriesEatenItemCommand) -> List[str]:
         pass
@@ -72,10 +65,13 @@ class Service:
         # Calculate eaten calories from 3 AM to 3 AM just in case of late dinner
         today = (self.now() - timedelta(hours=self.START_DATE_OFFSET_HOURS)).date()
         today_start_datetime = datetime(today.year, today.month, today.day, self.START_DATE_OFFSET_HOURS)
-        today_eaten_calories = [item.calories_eaten for item in self.eaten_items if item.added_on > today_start_datetime]
+        eaten_items = Repository().get_eaten_items()
+        today_eaten_calories = [item.calories_eaten for item in eaten_items if item.added_on > today_start_datetime]
         today_eaten_calories_sum = sum(today_eaten_calories)
         return today_eaten_calories_sum
 
-    def search_food_item(self, item_name) -> Optional[List[FoodItem]]:
-        candidates = [item for item in self.food_items if item_name in item.name]
+    @staticmethod
+    def search_food_item(item_name) -> Optional[List[FoodItem]]:
+        food_items = Repository().get_food_items()
+        candidates = [item for item in food_items if item_name in item.name]
         return candidates
