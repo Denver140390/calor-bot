@@ -22,6 +22,7 @@ START_ROUTES, END_ROUTES = range(2)
 EAT = 'Eat'
 ADD_NEW_FOOD = 'Add new food'
 EDIT_FOOD = 'Edit food'
+SHOW_EATEN_FOOD = 'Show eaten food'
 ENTER_FOOD_NAME = 'Enter food name'
 ENTER_FOOD_DATA = 'Enter food data'
 CHOOSE_FROM_MULTIPLE_FOODS = 'Choose from multiple foods'
@@ -58,6 +59,7 @@ def start(update: Update, context: CallbackContext) -> str:
             InlineKeyboardButton(EAT, callback_data=str(EAT)),
             InlineKeyboardButton(ADD_NEW_FOOD, callback_data=str(ADD_NEW_FOOD)),
             InlineKeyboardButton(EDIT_FOOD, callback_data=str(EDIT_FOOD)),
+            InlineKeyboardButton(SHOW_EATEN_FOOD, callback_data=str(SHOW_EATEN_FOOD))
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -155,6 +157,12 @@ def edit_food(update: Update, context: CallbackContext) -> str:
     pass
 
 
+def show_eaten_food(update: Update, context: CallbackContext) -> str:
+    today_eaten_calories = service.get_today_eaten_calories()
+    context.bot.send_message(chat_id=update.effective_chat.id, text=f'Today I ate {today_eaten_calories} cal.')
+    return START_ROUTES
+
+
 # def get_command_invoker(command: commands.Command) -> Optional[Callable[[commands.Command], List[str]]]:
 #     if isinstance(command, commands.AddWeightCommand):
 #         return lambda c: service.add_weight(c)
@@ -219,6 +227,7 @@ dispatcher.add_handler(ConversationHandler(
             CallbackQueryHandler(eat, pattern=f"^{EAT}$"),
             CallbackQueryHandler(new_food, pattern=f"^{ADD_NEW_FOOD}$"),
             CallbackQueryHandler(edit_food, pattern=f"^{EDIT_FOOD}$"),
+            CallbackQueryHandler(show_eaten_food, pattern=f"^{SHOW_EATEN_FOOD}$"),
         ],
         ENTER_FOOD_NAME: [
             MessageHandler(Filters.text, enter_food_name)
