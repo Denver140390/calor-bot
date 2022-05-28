@@ -2,7 +2,7 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 from typing import List, Optional
 from repository import Repository
-from models import Weight, WeightedFood, EatenWeightedFood, Food
+from models import Weight, WeightedFood, EatenWeightedFood, Food, PortionFood, EatenPortionFood
 
 
 class Service:
@@ -27,15 +27,19 @@ class Service:
             # TODO can be multiple entries per day, gotta select first per yesterday
             return [f'{response} Yesterday it was {weights[-2].weight_kilograms} kg.']
 
-    def add_weighted_food(self, name: str, calories_per_100_grams: Decimal) -> WeightedFood:
-        weighted_food = Repository().add_weighted_food(name, calories_per_100_grams, self.now())
-        return weighted_food
+    def add_weighted_food(self, food_name: str, calories_per_100_grams: Decimal) -> WeightedFood:
+        return Repository().add_weighted_food(food_name, calories_per_100_grams, self.now())
+
+    def add_portion_food(self, food_name: str, calories_per_portion: Decimal) -> PortionFood:
+        return Repository().add_portion_food(food_name, calories_per_portion, self.now())
 
     def add_eaten_food(self, food: WeightedFood, weight_grams: Decimal) -> None:
-        # TODO check if food is portion food, then weight is redundant ?
-        now = self.now()
-        eaten_food = EatenWeightedFood(food, weight_grams=weight_grams, added_on=now)
-        Repository().add_eaten_weighted_food(eaten_food)
+        eaten_weighted_food = EatenWeightedFood(food, self.now(), weight_grams)
+        Repository().add_eaten_weighted_food(eaten_weighted_food)
+
+    def add_eaten_portion_food(self, portion_food: PortionFood) -> None:
+        eaten_portion_food = EatenPortionFood(portion_food, self.now())
+        Repository().add_eaten_portion_food(eaten_portion_food)
 
     def get_today_eaten_calories(self) -> Decimal:
         # Calculate eaten calories from 3 AM to 3 AM just in case of late dinner

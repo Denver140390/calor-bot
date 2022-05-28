@@ -1,5 +1,7 @@
 from decimal import Decimal, InvalidOperation
 from typing import Optional
+
+from models import PortionFood, WeightedFood
 from service import Service
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -18,11 +20,14 @@ import os
 START_ROUTES, END_ROUTES = range(2)
 
 EAT = 'Eat'
+EAT_PORTION = 'Eat Portion'
 ADD_NEW_FOOD = 'Add new food'
 EDIT_FOOD = 'Edit food'
 SHOW_EATEN_CALORIES = 'Show eaten calories'
 ENTER_FOOD_NAME = 'Enter food name'
+ENTER_PORTION_FOOD_NAME = 'Enter portion food name'
 ENTER_FOOD_DATA = 'Enter food data'
+ENTER_PORTION_FOOD_DATA = 'Enter portion food data'
 CHOOSE_FROM_MULTIPLE_FOODS = 'Choose from multiple foods'
 ENTER_FOOD_WEIGHT = 'Enter food weight'
 
@@ -70,11 +75,12 @@ def init_keyboard():
     keyboard = [
         [
             InlineKeyboardButton(EAT, callback_data=str(EAT)),
-            InlineKeyboardButton(ADD_NEW_FOOD, callback_data=str(ADD_NEW_FOOD)),
-            InlineKeyboardButton(EDIT_FOOD, callback_data=str(EDIT_FOOD))
+            InlineKeyboardButton(EAT_PORTION, callback_data=str(EAT_PORTION))
         ],
         [
-            InlineKeyboardButton(SHOW_EATEN_CALORIES, callback_data=str(SHOW_EATEN_CALORIES))
+            InlineKeyboardButton(SHOW_EATEN_CALORIES, callback_data=str(SHOW_EATEN_CALORIES)),
+            InlineKeyboardButton(ADD_NEW_FOOD, callback_data=str(ADD_NEW_FOOD)),
+            InlineKeyboardButton(EDIT_FOOD, callback_data=str(EDIT_FOOD))
         ]
     ]
     return keyboard
@@ -95,11 +101,15 @@ def enter_food_name(update: Update, context: CallbackContext) -> str:
     if len(candidates) > 1:
         update.message.reply_text(
             f"I know multiple of entries matching {food_name}. Can you please tell me a more specific name?")
-        return ENTER_FOOD_DATA
-        # TODO return CHOOSE_FROM_MULTIPLE_FOODS
+        return ENTER_FOOD_NAME
     food = candidates[0]
-    update.message.reply_text(f"I know already ate {food.name}, how many grams am I going to eat?")
-    context.user_data[FOOD_USER_DATA] = food
+    if not isinstance(food, WeightedFood):
+        update.message.reply_text(
+            f"This does not seem as a weighted food. Can you please tell me a more specific name?")
+        return ENTER_FOOD_NAME
+    weighted_food = food
+    update.message.reply_text(f"I know already ate {weighted_food.name}, how many grams am I going to eat?")
+    context.user_data[FOOD_USER_DATA] = weighted_food
     return ENTER_FOOD_WEIGHT
 
 
@@ -115,6 +125,50 @@ def enter_food_data(update: Update, context: CallbackContext) -> str:
     context.user_data[FOOD_USER_DATA] = food
     update.message.reply_text("How many grams will I eat?")
     return ENTER_FOOD_WEIGHT
+
+
+def eat_portion(update: Update, context: CallbackContext) -> str:
+    context.bot.send_message(chat_id=update.effective_chat.id, text="What am I going to eat?")
+    return ENTER_PORTION_FOOD_NAME
+
+
+def enter_portion_food_name(update: Update, context: CallbackContext) -> str:
+    food_name = update.message.text.strip()
+    context.user_data[FOOD_NAME_USER_DATA] = food_name
+    candidates = service.search_food(food_name)
+    if not candidates:
+        update.message.reply_text("How many calories?")
+        return ENTER_PORTION_FOOD_DATA
+    if len(candidates) > 1:
+        update.message.reply_text(
+            f"I know multiple of entries matching {food_name}. Can you please tell me a more specific name?")
+        return ENTER_PORTION_FOOD_NAME
+    food = candidates[0]
+    if not isinstance(food, PortionFood):
+        update.message.reply_text(
+            f"This does not seem as a portion food. Can you please tell me a more specific name?")
+        return ENTER_PORTION_FOOD_NAME
+    portion_food = food
+    update.message.reply_text(f"I know {portion_food.name}, thanks.")
+    service.add_eaten_portion_food(portion_food)
+    today_eaten_calories = service.get_today_eaten_calories()
+    update.message.reply_text(f'Today I ate {today_eaten_calories} cal.')
+    return start_over(update, context)
+
+
+def enter_portion_food_data(update: Update, context: CallbackContext) -> str:
+    calories_per_portion_str = update.message.text.strip()
+    calories_per_portion = try_parse_decimal(calories_per_portion_str)
+    if not calories_per_portion:
+        update.message.reply_text(
+            "This does not seem as a number, can you please tell me a number of calories per portion?")
+        return ENTER_PORTION_FOOD_DATA
+    food_name = context.user_data[FOOD_NAME_USER_DATA]
+    portion_food = service.add_portion_food(food_name, calories_per_portion)
+    service.add_eaten_portion_food(portion_food)
+    today_eaten_calories = service.get_today_eaten_calories()
+    update.message.reply_text(f'Today I ate {today_eaten_calories} cal.')
+    return start_over(update, context)
 
 
 # noinspection PyUnusedLocal
@@ -187,6 +241,7 @@ dispatcher.add_handler(ConversationHandler(
     states={
         START_ROUTES: [
             CallbackQueryHandler(eat, pattern=f"^{EAT}$"),
+            CallbackQueryHandler(eat_portion, pattern=f"^{EAT_PORTION}$"),
             CallbackQueryHandler(new_food, pattern=f"^{ADD_NEW_FOOD}$"),
             CallbackQueryHandler(edit_food, pattern=f"^{EDIT_FOOD}$"),
             CallbackQueryHandler(show_eaten_calories, pattern=f"^{SHOW_EATEN_CALORIES}$"),
@@ -194,8 +249,14 @@ dispatcher.add_handler(ConversationHandler(
         ENTER_FOOD_NAME: [
             MessageHandler(Filters.text, enter_food_name)
         ],
+        ENTER_PORTION_FOOD_NAME: [
+            MessageHandler(Filters.text, enter_portion_food_name)
+        ],
         ENTER_FOOD_DATA: [
             MessageHandler(Filters.text, enter_food_data)
+        ],
+        ENTER_PORTION_FOOD_DATA: [
+            MessageHandler(Filters.text, enter_portion_food_data)
         ],
         CHOOSE_FROM_MULTIPLE_FOODS: [
             MessageHandler(Filters.text, choose_from_multiple_foods)
