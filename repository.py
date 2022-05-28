@@ -57,6 +57,7 @@ class Repository:
             for row in eaten_food_rows]
         return eaten_foods
 
+    # noinspection SpellCheckingInspection
     @staticmethod
     def __connect() -> pyodbc.Connection:
         server = 'localhost'

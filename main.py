@@ -29,6 +29,7 @@ ENTER_FOOD_WEIGHT = 'Enter food weight'
 FOOD_USER_DATA = 'food'
 FOOD_NAME_USER_DATA = 'food_name'
 
+# noinspection SpellCheckingInspection
 # Enable logging
 logging.basicConfig(format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -43,6 +44,7 @@ def try_parse_decimal(message: str) -> Optional[Decimal]:
         return None
 
 
+# noinspection PyUnusedLocal
 def start(update: Update, context: CallbackContext) -> str:
     user = update.message.from_user
     logger.info("User %s started the conversation.", user.first_name)
@@ -54,6 +56,7 @@ def start(update: Update, context: CallbackContext) -> str:
     return START_ROUTES
 
 
+# noinspection PyUnusedLocal
 def start_over(update: Update, context: CallbackContext) -> str:
     keyboard = init_keyboard()
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -114,6 +117,7 @@ def enter_food_data(update: Update, context: CallbackContext) -> str:
     return ENTER_FOOD_WEIGHT
 
 
+# noinspection PyUnusedLocal
 def choose_from_multiple_foods(update: Update, context: CallbackContext) -> str:
     pass
 
@@ -131,10 +135,12 @@ def enter_food_weight(update: Update, context: CallbackContext) -> str:
     return start_over(update, context)
 
 
+# noinspection PyUnusedLocal
 def new_food(update: Update, context: CallbackContext) -> str:
     pass
 
 
+# noinspection PyUnusedLocal
 def edit_food(update: Update, context: CallbackContext) -> str:
     pass
 
@@ -163,6 +169,7 @@ def unknown(update: Update, context: CallbackContext):
     context.bot.send_message(chat_id=update.effective_chat.id, text="Sorry, I didn't understand that command.")
 
 
+# noinspection SpellCheckingInspection
 updater = Updater(token=os.environ['TELEGRAMTOKEN'])
 dispatcher = updater.dispatcher
 

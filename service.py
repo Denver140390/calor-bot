@@ -42,7 +42,8 @@ class Service:
         today = (self.now() - timedelta(hours=self.START_DATE_OFFSET_HOURS)).date()
         today_start_datetime = datetime(today.year, today.month, today.day, self.START_DATE_OFFSET_HOURS)
         eaten_foods = Repository().get_eaten_foods()
-        today_eaten_calories = [eaten_food.calories_eaten for eaten_food in eaten_foods if eaten_food.added_on > today_start_datetime]
+        today_eaten_calories = \
+            [eaten_food.calories_eaten for eaten_food in eaten_foods if eaten_food.added_on > today_start_datetime]
         today_eaten_calories_sum = sum(today_eaten_calories)
         return today_eaten_calories_sum
 
