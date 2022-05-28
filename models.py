@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from typing import Optional
 
 
 @dataclass(frozen=True)
@@ -10,10 +11,16 @@ class Weight:
 
 
 @dataclass(frozen=True)
-class FoodItem:
+class FoodComposition:
+    pass
+
+
+@dataclass(frozen=True)
+class Food:
     id: int
     name: str
     calories_per_100_grams: Decimal
+    # composition: Optional[FoodComposition]
     added_on: datetime
 
     def __str__(self) -> str:
@@ -21,14 +28,14 @@ class FoodItem:
 
 
 @dataclass(frozen=True)
-class EatenItem:
-    item: FoodItem
+class EatenFood:
+    food: Food
     weight_grams: Decimal
     added_on: datetime
 
     @property
     def calories_eaten(self) -> Decimal:
-        return self.item.calories_per_100_grams / 100 * self.weight_grams
+        return self.food.calories_per_100_grams / 100 * self.weight_grams
 
     def __str__(self) -> str:
-        return f'{self.item}, {self.weight_grams} grams, a total of {self.calories_eaten} cal'
+        return f'{self.food}, {self.weight_grams} grams, a total of {self.calories_eaten} cal'
