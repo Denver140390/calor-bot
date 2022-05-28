@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from typing import List
-from models import Weight, Food, EatenFood
+from models import Weight, WeightedFood, EatenFood, EatenWeightedFood, Food
 import os
 import pyodbc
 
@@ -23,7 +23,7 @@ class Repository:
         weights = [Weight(row.WeightKilograms, row.AddedOn) for row in weight_rows]
         return weights
 
-    def add_food(self, name: str, calories_per_100_grams: Decimal, added_on: datetime) -> Food:
+    def add_weighted_food(self, name: str, calories_per_100_grams: Decimal, added_on: datetime) -> WeightedFood:
         sql = ("INSERT INTO dbo.Food "
                "(UserId, Name, CaloriesPer100Grams, AddedOn)"
                "OUTPUT INSERTED.ID "
@@ -31,18 +31,21 @@ class Repository:
         cursor = self.__connect().cursor().execute(sql, 'dm', name, calories_per_100_grams, added_on)
         inserted_id = cursor.fetchval()
         cursor.commit()
-        return Food(inserted_id, name, calories_per_100_grams, added_on)
+        return WeightedFood(inserted_id, name, added_on, calories_per_100_grams)
 
     def get_foods(self) -> List[Food]:
         sql = f"SELECT Id, Name, CaloriesPer100Grams, AddedOn FROM dbo.Food ORDER BY AddedOn DESC"
         food_rows = self.__connect().cursor().execute(sql).fetchall()
-        foods = [Food(row.Id, row.Name, row.CaloriesPer100Grams, row.AddedOn) for row in food_rows]
+        foods = [WeightedFood(row.Id, row.Name, row.CaloriesPer100Grams, row.AddedOn) for row in food_rows]
         return foods
 
-    def add_eaten_food(self, eaten_food: EatenFood):
+    def add_eaten_weighted_food(self, eaten_weighted_food: EatenWeightedFood):
         sql = f'INSERT INTO dbo.EatenFood' \
               f'(UserId, FoodId, WeightGrams, AddedOn) VALUES' \
-              f'(\'dm\', \'{eaten_food.food.id}\', {eaten_food.weight_grams}, \'{eaten_food.added_on}\')'
+              f'(\'dm\', ' \
+              f'\'{eaten_weighted_food.food.id}\', ' \
+              f'{eaten_weighted_food.weight_grams}, ' \
+              f'\'{eaten_weighted_food.added_on}\')'
         self.__connect().cursor().execute(sql).commit()
 
     def get_eaten_foods(self) -> List[EatenFood]:
@@ -53,7 +56,10 @@ class Repository:
                f"ORDER BY EatenFood.AddedOn DESC")
         eaten_food_rows = self.__connect().cursor().execute(sql).fetchall()
         eaten_foods = [
-            EatenFood(Food(row.Id, row.Name, row.CaloriesPer100Grams, row.AddedOn), row.WeightGrams, row.AddedOn)
+            EatenWeightedFood(
+                WeightedFood(row.Id, row.Name, row.AddedOn, row.CaloriesPer100Grams),
+                row.AddedOn,
+                row.WeightGrams)
             for row in eaten_food_rows]
         return eaten_foods
 

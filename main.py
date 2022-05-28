@@ -111,7 +111,7 @@ def enter_food_data(update: Update, context: CallbackContext) -> str:
             "This does not seem as a number, can you please tell me a number of calories per 100 grams?")
         return ENTER_FOOD_DATA
     food_name = context.user_data[FOOD_NAME_USER_DATA]
-    food = service.add_food(food_name, calories_per_100_grams)
+    food = service.add_weighted_food(food_name, calories_per_100_grams)
     context.user_data[FOOD_USER_DATA] = food
     update.message.reply_text("How many grams will I eat?")
     return ENTER_FOOD_WEIGHT
