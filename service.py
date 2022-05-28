@@ -16,10 +16,10 @@ class Service:
     def today() -> date:
         return date.today()  # TODO client timezone
 
-    def add_weight(self, weight_kilograms: Decimal) -> List[str]:
+    def add_weight(self, weight_kilograms: Decimal, telegram_user_id: str) -> List[str]:
         weight = Weight(weight_kilograms, self.now())
-        Repository().add_weight(weight)
-        weights = Repository().get_weights_desc()
+        Repository().add_weight(weight, telegram_user_id)
+        weights = Repository().get_weights_desc(telegram_user_id)
         response = f'Your current weight is {weight.weight_kilograms} kg. Got it!'
         if len(weights) == 1:
             return [response]
@@ -27,32 +27,32 @@ class Service:
             # TODO can be multiple entries per day, gotta select first per yesterday
             return [f'{response} Yesterday it was {weights[-2].weight_kilograms} kg.']
 
-    def add_weighted_food(self, food_name: str, calories_per_100_grams: Decimal) -> WeightedFood:
-        return Repository().add_weighted_food(food_name, calories_per_100_grams, self.now())
+    def add_weighted_food(self, food_name: str, calories_per_100_grams: Decimal, telegram_user_id: str) -> WeightedFood:
+        return Repository().add_weighted_food(food_name, calories_per_100_grams, self.now(), telegram_user_id)
 
-    def add_portion_food(self, food_name: str, calories_per_portion: Decimal) -> PortionFood:
-        return Repository().add_portion_food(food_name, calories_per_portion, self.now())
+    def add_portion_food(self, food_name: str, calories_per_portion: Decimal, telegram_user_id: str) -> PortionFood:
+        return Repository().add_portion_food(food_name, calories_per_portion, self.now(), telegram_user_id)
 
-    def add_eaten_food(self, food: WeightedFood, weight_grams: Decimal) -> None:
+    def add_eaten_food(self, food: WeightedFood, weight_grams: Decimal, telegram_user_id: str) -> None:
         eaten_weighted_food = EatenWeightedFood(food, self.now(), weight_grams)
-        Repository().add_eaten_weighted_food(eaten_weighted_food)
+        Repository().add_eaten_weighted_food(eaten_weighted_food, telegram_user_id)
 
-    def add_eaten_portion_food(self, portion_food: PortionFood) -> None:
+    def add_eaten_portion_food(self, portion_food: PortionFood, telegram_user_id: str) -> None:
         eaten_portion_food = EatenPortionFood(portion_food, self.now())
-        Repository().add_eaten_portion_food(eaten_portion_food)
+        Repository().add_eaten_portion_food(eaten_portion_food, telegram_user_id)
 
-    def get_today_eaten_calories(self) -> Decimal:
+    def get_today_eaten_calories(self, telegram_user_id: str) -> Decimal:
         # Calculate eaten calories from 3 AM to 3 AM just in case of late dinner
         today = (self.now() - timedelta(hours=self.START_DATE_OFFSET_HOURS)).date()
         today_start_datetime = datetime(today.year, today.month, today.day, self.START_DATE_OFFSET_HOURS)
-        eaten_foods = Repository().get_eaten_foods()
+        eaten_foods = Repository().get_eaten_foods(telegram_user_id)
         today_eaten_calories = \
             [eaten_food.eaten_calories() for eaten_food in eaten_foods if eaten_food.added_on > today_start_datetime]
         today_eaten_calories_sum = sum(today_eaten_calories)
         return today_eaten_calories_sum
 
     @staticmethod
-    def search_food(food_name) -> Optional[List[Food]]:
-        foods = Repository().get_foods()
+    def search_food(food_name: str, telegram_user_id: str) -> Optional[List[Food]]:
+        foods = Repository().get_foods(telegram_user_id)
         candidates = [food for food in foods if food_name in food.name]
         return candidates

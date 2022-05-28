@@ -65,8 +65,9 @@ def start(update: Update, context: CallbackContext) -> str:
 def start_over(update: Update, context: CallbackContext) -> str:
     keyboard = init_keyboard()
     reply_markup = InlineKeyboardMarkup(keyboard)
-    update.message.reply_text(
-        "What is next?",
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="What is next?",
         reply_markup=reply_markup)
     return START_ROUTES
 
@@ -94,7 +95,7 @@ def eat(update: Update, context: CallbackContext) -> str:
 def enter_food_name(update: Update, context: CallbackContext) -> str:
     food_name = update.message.text.strip()
     context.user_data[FOOD_NAME_USER_DATA] = food_name
-    candidates = service.search_food(food_name)
+    candidates = service.search_food(food_name, update.effective_user.id)
     if not candidates:
         update.message.reply_text("How many calories per 100 grams?")
         return ENTER_FOOD_DATA
@@ -121,7 +122,7 @@ def enter_food_data(update: Update, context: CallbackContext) -> str:
             "This does not seem as a number, can you please tell me a number of calories per 100 grams?")
         return ENTER_FOOD_DATA
     food_name = context.user_data[FOOD_NAME_USER_DATA]
-    food = service.add_weighted_food(food_name, calories_per_100_grams)
+    food = service.add_weighted_food(food_name, calories_per_100_grams, update.effective_user.id)
     context.user_data[FOOD_USER_DATA] = food
     update.message.reply_text("How many grams will I eat?")
     return ENTER_FOOD_WEIGHT
@@ -135,7 +136,7 @@ def eat_portion(update: Update, context: CallbackContext) -> str:
 def enter_portion_food_name(update: Update, context: CallbackContext) -> str:
     food_name = update.message.text.strip()
     context.user_data[FOOD_NAME_USER_DATA] = food_name
-    candidates = service.search_food(food_name)
+    candidates = service.search_food(food_name, update.effective_user.id)
     if not candidates:
         update.message.reply_text("How many calories?")
         return ENTER_PORTION_FOOD_DATA
@@ -150,8 +151,8 @@ def enter_portion_food_name(update: Update, context: CallbackContext) -> str:
         return ENTER_PORTION_FOOD_NAME
     portion_food = food
     update.message.reply_text(f"I know {portion_food.name}, thanks.")
-    service.add_eaten_portion_food(portion_food)
-    today_eaten_calories = service.get_today_eaten_calories()
+    service.add_eaten_portion_food(portion_food, update.effective_user.id)
+    today_eaten_calories = service.get_today_eaten_calories(update.effective_user.id)
     update.message.reply_text(f'Today I ate {today_eaten_calories} cal.')
     return start_over(update, context)
 
@@ -164,9 +165,9 @@ def enter_portion_food_data(update: Update, context: CallbackContext) -> str:
             "This does not seem as a number, can you please tell me a number of calories per portion?")
         return ENTER_PORTION_FOOD_DATA
     food_name = context.user_data[FOOD_NAME_USER_DATA]
-    portion_food = service.add_portion_food(food_name, calories_per_portion)
-    service.add_eaten_portion_food(portion_food)
-    today_eaten_calories = service.get_today_eaten_calories()
+    portion_food = service.add_portion_food(food_name, calories_per_portion, update.effective_user.id)
+    service.add_eaten_portion_food(portion_food, update.effective_user.id)
+    today_eaten_calories = service.get_today_eaten_calories(update.effective_user.id)
     update.message.reply_text(f'Today I ate {today_eaten_calories} cal.')
     return start_over(update, context)
 
@@ -183,8 +184,8 @@ def enter_food_weight(update: Update, context: CallbackContext) -> str:
         update.message.reply_text("This does not seem as a number, can you please tell me a number of grams?")
         return ENTER_FOOD_WEIGHT
     food = context.user_data[FOOD_USER_DATA]
-    service.add_eaten_food(food, weight_grams)
-    today_eaten_calories = service.get_today_eaten_calories()
+    service.add_eaten_food(food, weight_grams, update.effective_user.id)
+    today_eaten_calories = service.get_today_eaten_calories(update.effective_user.id)
     update.message.reply_text(f'Today I ate {today_eaten_calories} cal.')
     return start_over(update, context)
 
@@ -200,9 +201,9 @@ def edit_food(update: Update, context: CallbackContext) -> str:
 
 
 def show_eaten_calories(update: Update, context: CallbackContext) -> str:
-    today_eaten_calories = service.get_today_eaten_calories()
+    today_eaten_calories = service.get_today_eaten_calories(update.effective_user.id)
     context.bot.send_message(chat_id=update.effective_chat.id, text=f'Today I ate {today_eaten_calories} cal.')
-    return START_ROUTES
+    return start_over(update, context)
 
 
 def process_message(update: Update, context: CallbackContext):
@@ -211,7 +212,7 @@ def process_message(update: Update, context: CallbackContext):
     if not weight:
         context.bot.send_message(chat_id=update.effective_chat.id, text='Unknown message pattern.')
         return
-    response_messages = service.add_weight(weight)
+    response_messages = service.add_weight(weight, update.effective_user.id)
     [context.bot.send_message(chat_id=update.effective_chat.id, text=response) for response in response_messages]
 
 
