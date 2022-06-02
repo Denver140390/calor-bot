@@ -1,5 +1,6 @@
+from datetime import date
 from decimal import Decimal, InvalidOperation
-from typing import Optional
+from typing import Optional, Tuple, List
 
 from models import PortionFood, WeightedFood
 from service import Service
@@ -53,7 +54,7 @@ def try_parse_decimal(message: str) -> Optional[Decimal]:
 def start(update: Update, context: CallbackContext) -> str:
     user = update.message.from_user
     logger.info("User %s started the conversation.", user.first_name)
-    keyboard = init_keyboard()
+    keyboard = get_start_keyboard()
     reply_markup = InlineKeyboardMarkup(keyboard)
     update.message.reply_text(
         "Hello, my name is Calor and I wanna eat! Please feed me or at least tell me about food.",
@@ -63,7 +64,7 @@ def start(update: Update, context: CallbackContext) -> str:
 
 # noinspection PyUnusedLocal
 def start_over(update: Update, context: CallbackContext) -> str:
-    keyboard = init_keyboard()
+    keyboard = get_start_keyboard()
     reply_markup = InlineKeyboardMarkup(keyboard)
     context.bot.send_message(
         chat_id=update.effective_chat.id,
@@ -72,7 +73,7 @@ def start_over(update: Update, context: CallbackContext) -> str:
     return START_ROUTES
 
 
-def init_keyboard():
+def get_start_keyboard():
     keyboard = [
         [
             InlineKeyboardButton(EAT, callback_data=str(EAT)),
@@ -85,6 +86,18 @@ def init_keyboard():
         ]
     ]
     return keyboard
+
+
+def get_food_names_keyboard(food_names: Tuple[str]):
+    keyboard = [[InlineKeyboardButton(food_name, callback_data=CHOOSE_FROM_MULTIPLE_FOODS)] for food_name in food_names]
+    return keyboard
+
+
+def get_eaten_calories_text(eaten_calories: dict[date, Decimal]) -> str:
+    eaten_calories_strings: List[str] = []
+    for calories_date, calories in eaten_calories.items():
+        eaten_calories_strings.append(f"{calories_date}: {calories}")
+    return "\n".join(eaten_calories_strings)
 
 
 def eat(update: Update, context: CallbackContext) -> str:
@@ -100,9 +113,13 @@ def enter_food_name(update: Update, context: CallbackContext) -> str:
         update.message.reply_text("How many calories per 100 grams?")
         return ENTER_FOOD_DATA
     if len(candidates) > 1:
+        # TODO sort by abc or by with date time if name equals
+        food_names = tuple([c.name for c in candidates])
         update.message.reply_text(
-            f"I know multiple of entries matching {food_name}. Can you please tell me a more specific name?")
-        return ENTER_FOOD_NAME
+            text=f"I know multiple of entries matching {food_name}. "
+                 f"Please choose one of them or type a new name if you want to create new food.",
+            reply_markup=InlineKeyboardMarkup(get_food_names_keyboard(food_names)))
+        return CHOOSE_FROM_MULTIPLE_FOODS
     food = candidates[0]
     if not isinstance(food, WeightedFood):
         update.message.reply_text(
@@ -152,8 +169,8 @@ def enter_portion_food_name(update: Update, context: CallbackContext) -> str:
     portion_food = food
     update.message.reply_text(f"I know {portion_food.name}, thanks.")
     service.add_eaten_portion_food(portion_food, update.effective_user.id)
-    today_eaten_calories = service.get_today_eaten_calories(update.effective_user.id)
-    update.message.reply_text(f'Today I ate {today_eaten_calories} cal.')
+    eaten_calories = service.get_eaten_calories_by_date(update.effective_user.id)
+    update.message.reply_text(get_eaten_calories_text(eaten_calories))
     return start_over(update, context)
 
 
@@ -167,8 +184,8 @@ def enter_portion_food_data(update: Update, context: CallbackContext) -> str:
     food_name = context.user_data[FOOD_NAME_USER_DATA]
     portion_food = service.add_portion_food(food_name, calories_per_portion, update.effective_user.id)
     service.add_eaten_portion_food(portion_food, update.effective_user.id)
-    today_eaten_calories = service.get_today_eaten_calories(update.effective_user.id)
-    update.message.reply_text(f'Today I ate {today_eaten_calories} cal.')
+    eaten_calories = service.get_eaten_calories_by_date(update.effective_user.id)
+    update.message.reply_text(get_eaten_calories_text(eaten_calories))
     return start_over(update, context)
 
 
@@ -185,8 +202,8 @@ def enter_food_weight(update: Update, context: CallbackContext) -> str:
         return ENTER_FOOD_WEIGHT
     food = context.user_data[FOOD_USER_DATA]
     service.add_eaten_food(food, weight_grams, update.effective_user.id)
-    today_eaten_calories = service.get_today_eaten_calories(update.effective_user.id)
-    update.message.reply_text(f'Today I ate {today_eaten_calories} cal.')
+    eaten_calories = service.get_eaten_calories_by_date(update.effective_user.id)
+    update.message.reply_text(get_eaten_calories_text(eaten_calories))
     return start_over(update, context)
 
 
@@ -201,8 +218,9 @@ def edit_food(update: Update, context: CallbackContext) -> str:
 
 
 def show_eaten_calories(update: Update, context: CallbackContext) -> str:
-    today_eaten_calories = service.get_today_eaten_calories(update.effective_user.id)
-    context.bot.send_message(chat_id=update.effective_chat.id, text=f'Today I ate {today_eaten_calories} cal.')
+    eaten_calories = service.get_eaten_calories_by_date(update.effective_user.id)
+    
+    context.bot.send_message(chat_id=update.effective_chat.id, text=get_eaten_calories_text(eaten_calories))
     return start_over(update, context)
 
 

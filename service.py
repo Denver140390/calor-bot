@@ -1,8 +1,9 @@
+from collections import defaultdict
 from datetime import datetime, date, timedelta
 from decimal import Decimal
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from repository import Repository
-from models import Weight, WeightedFood, EatenWeightedFood, Food, PortionFood, EatenPortionFood
+from models import Weight, WeightedFood, EatenWeightedFood, Food, PortionFood, EatenPortionFood, EatenFood
 
 
 class Service:
@@ -41,18 +42,26 @@ class Service:
         eaten_portion_food = EatenPortionFood(portion_food, self.now())
         Repository().add_eaten_portion_food(eaten_portion_food, telegram_user_id)
 
-    def get_today_eaten_calories(self, telegram_user_id: str) -> Decimal:
-        # Calculate eaten calories from 3 AM to 3 AM just in case of late dinner
-        today = (self.now() - timedelta(hours=self.START_DATE_OFFSET_HOURS)).date()
-        today_start_datetime = datetime(today.year, today.month, today.day, self.START_DATE_OFFSET_HOURS)
+    def get_eaten_calories_by_date(self, telegram_user_id: str) -> dict[date, Decimal]:  # TODO return tuple?
         eaten_foods = Repository().get_eaten_foods(telegram_user_id)
-        today_eaten_calories = \
-            [eaten_food.eaten_calories() for eaten_food in eaten_foods if eaten_food.added_on > today_start_datetime]
-        today_eaten_calories_sum = sum(today_eaten_calories)
-        return today_eaten_calories_sum
+        eaten_food_by_date: defaultdict[date, Decimal] = defaultdict[date, Decimal](lambda: Decimal(0))
+        for eaten_food in eaten_foods:
+            # Calculate eaten calories from 3 AM to 3 AM just in case of late dinner
+            eaten_food_date = (eaten_food.added_on - timedelta(hours=self.START_DATE_OFFSET_HOURS)).date()
+            eaten_food_by_date[eaten_food_date] += eaten_food.eaten_calories()
+        return eaten_food_by_date
 
     @staticmethod
-    def search_food(food_name: str, telegram_user_id: str) -> Optional[List[Food]]:
+    def search_food(food_name: str, telegram_user_id: str) -> Optional[Tuple[Food]]:
         foods = Repository().get_foods(telegram_user_id)
-        candidates = [food for food in foods if food_name in food.name]
-        return candidates
+        candidates = []
+        for food in foods:
+            food_name_parts = food_name.split()
+            is_all_food_name_parts_matched: bool = True
+            for food_name_part in food_name_parts:
+                if food_name_part not in food.name:
+                    is_all_food_name_parts_matched = False
+                    break
+            if is_all_food_name_parts_matched:
+                candidates.append(food)
+        return tuple(candidates)
