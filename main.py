@@ -89,6 +89,7 @@ def get_start_keyboard():
 
 
 def get_food_names_keyboard(food_names: Tuple[str]):
+    food_names = sorted(food_names)
     keyboard = [[InlineKeyboardButton(food_name, callback_data=CHOOSE_FROM_MULTIPLE_FOODS)] for food_name in food_names]
     return keyboard
 
@@ -96,7 +97,7 @@ def get_food_names_keyboard(food_names: Tuple[str]):
 def get_eaten_calories_text(eaten_calories: dict[date, Decimal]) -> str:
     eaten_calories_strings: List[str] = []
     for calories_date, calories in eaten_calories.items():
-        eaten_calories_strings.append(f"{calories_date}: {calories}")
+        eaten_calories_strings.append(f"{calories_date}: {calories} cal")
     return "\n".join(eaten_calories_strings)
 
 
@@ -115,7 +116,8 @@ def enter_food_name(update: Update, context: CallbackContext) -> str:
     if len(candidates) > 1:
         # TODO sort by abc or by with date time if name equals
         food_names = tuple([c.name for c in candidates])
-        update.message.reply_text(
+        context.bot.send_message(
+            chat_id=update.effective_chat.id,
             text=f"I know multiple of entries matching {food_name}. "
                  f"Please choose one of them or type a new name if you want to create new food.",
             reply_markup=InlineKeyboardMarkup(get_food_names_keyboard(food_names)))
@@ -189,7 +191,6 @@ def enter_portion_food_data(update: Update, context: CallbackContext) -> str:
     return start_over(update, context)
 
 
-# noinspection PyUnusedLocal
 def choose_from_multiple_foods(update: Update, context: CallbackContext) -> str:
     pass
 
