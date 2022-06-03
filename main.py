@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Optional, Tuple, List
 
-from models import PortionFood, WeightedFood
+from models import PortionFood, WeightedFood, Food
 from service import Service
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
@@ -31,9 +31,13 @@ ENTER_FOOD_DATA = 'Enter food data'
 ENTER_PORTION_FOOD_DATA = 'Enter portion food data'
 CHOOSE_FROM_MULTIPLE_FOODS = 'Choose from multiple foods'
 ENTER_FOOD_WEIGHT = 'Enter food weight'
+ADD_WEIGHT = 'Add weight'
+ENTER_WEIGHT = 'Enter weight'
 
 FOOD_USER_DATA = 'food'
 FOOD_NAME_USER_DATA = 'food_name'
+
+# TODO query.answer() to stop loaded? https://core.telegram.org/bots/api#callbackquery
 
 # noinspection SpellCheckingInspection
 # Enable logging
@@ -83,14 +87,17 @@ def get_start_keyboard():
             InlineKeyboardButton(SHOW_EATEN_CALORIES, callback_data=str(SHOW_EATEN_CALORIES)),
             InlineKeyboardButton(ADD_NEW_FOOD, callback_data=str(ADD_NEW_FOOD)),
             InlineKeyboardButton(EDIT_FOOD, callback_data=str(EDIT_FOOD))
+        ],
+        [
+            InlineKeyboardButton(ADD_WEIGHT, callback_data=str(ADD_WEIGHT))
         ]
     ]
     return keyboard
 
 
-def get_food_names_keyboard(food_names: Tuple[str]):
-    food_names = sorted(food_names)
-    keyboard = [[InlineKeyboardButton(food_name, callback_data=CHOOSE_FROM_MULTIPLE_FOODS)] for food_name in food_names]
+def get_food_names_keyboard(foods: Tuple[Food]):
+    foods_sorted = sorted(foods, key=lambda food: food.name)
+    keyboard = [[InlineKeyboardButton(food.name, callback_data=food.id)] for food in foods_sorted]
     return keyboard
 
 
@@ -115,12 +122,10 @@ def enter_food_name(update: Update, context: CallbackContext) -> str:
         return ENTER_FOOD_DATA
     if len(candidates) > 1:
         # TODO sort by abc or by with date time if name equals
-        food_names = tuple([c.name for c in candidates])
-        context.bot.send_message(
-            chat_id=update.effective_chat.id,
+        update.message.reply_text(
             text=f"I know multiple of entries matching {food_name}. "
                  f"Please choose one of them or type a new name if you want to create new food.",
-            reply_markup=InlineKeyboardMarkup(get_food_names_keyboard(food_names)))
+            reply_markup=InlineKeyboardMarkup(get_food_names_keyboard(candidates)))
         return CHOOSE_FROM_MULTIPLE_FOODS
     food = candidates[0]
     if not isinstance(food, WeightedFood):
@@ -192,7 +197,12 @@ def enter_portion_food_data(update: Update, context: CallbackContext) -> str:
 
 
 def choose_from_multiple_foods(update: Update, context: CallbackContext) -> str:
-    pass
+    query = update.callback_query
+    food_id = int(query.data)
+    food = service.get_food(food_id, update.effective_user.id)
+    context.bot.send_message(chat_id=update.effective_chat.id, text=f"How many grams am I going to eat?")
+    context.user_data[FOOD_USER_DATA] = food  # TODO decide by food type
+    return ENTER_FOOD_WEIGHT
 
 
 def enter_food_weight(update: Update, context: CallbackContext) -> str:
@@ -220,8 +230,20 @@ def edit_food(update: Update, context: CallbackContext) -> str:
 
 def show_eaten_calories(update: Update, context: CallbackContext) -> str:
     eaten_calories = service.get_eaten_calories_by_date(update.effective_user.id)
-    
+
     context.bot.send_message(chat_id=update.effective_chat.id, text=get_eaten_calories_text(eaten_calories))
+    return start_over(update, context)
+
+
+def add_weight(update: Update, context: CallbackContext) -> str:
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Enter weight in kg")
+    return ENTER_WEIGHT
+
+
+def enter_weight(update: Update, context: CallbackContext) -> str:
+    weight = try_parse_decimal(update.message.text)
+    response_messages = service.add_weight(weight, update.effective_user.id)
+    [context.bot.send_message(chat_id=update.effective_chat.id, text=response) for response in response_messages]
     return start_over(update, context)
 
 
@@ -265,6 +287,7 @@ dispatcher.add_handler(ConversationHandler(
             CallbackQueryHandler(new_food, pattern=f"^{ADD_NEW_FOOD}$"),
             CallbackQueryHandler(edit_food, pattern=f"^{EDIT_FOOD}$"),
             CallbackQueryHandler(show_eaten_calories, pattern=f"^{SHOW_EATEN_CALORIES}$"),
+            CallbackQueryHandler(add_weight, pattern=f"^{ADD_WEIGHT}$"),
         ],
         ENTER_FOOD_NAME: [
             MessageHandler(Filters.text, enter_food_name)
@@ -279,10 +302,13 @@ dispatcher.add_handler(ConversationHandler(
             MessageHandler(Filters.text, enter_portion_food_data)
         ],
         CHOOSE_FROM_MULTIPLE_FOODS: [
-            MessageHandler(Filters.text, choose_from_multiple_foods)
+            CallbackQueryHandler(choose_from_multiple_foods)
         ],
         ENTER_FOOD_WEIGHT: [
             MessageHandler(Filters.text, enter_food_weight)
+        ],
+        ENTER_WEIGHT: [
+            MessageHandler(Filters.text, enter_weight)
         ]
     },
     fallbacks=[CommandHandler("start", start)],

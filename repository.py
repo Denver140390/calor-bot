@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import List
+from typing import List, Optional
 from models import Weight, WeightedFood, EatenFood, EatenWeightedFood, Food, PortionFood, EatenPortionFood
 import os
 import pyodbc
@@ -52,6 +52,21 @@ class Repository:
         cursor.commit()
         return PortionFood(inserted_id, food_name, added_on, calories_per_portion)
 
+    def get_food(self, food_id: int, telegram_user_id: str) -> Food:
+        sql = (f"SELECT Id, Name, CaloriesPer100Grams, CaloriesPerPortion, AddedOn "
+               f"FROM dbo.Food "
+               f"WHERE Id = ? AND TelegramUserId = ? ")
+        row = self.__connect().cursor().execute(sql, food_id, telegram_user_id).fetchone()
+        if not row:
+            raise RuntimeError(f"Unexpected error - could not find food by id {food_id}")
+
+        if row.CaloriesPer100Grams:
+            return WeightedFood(row.Id, row.Name, row.AddedOn, row.CaloriesPer100Grams)
+        if row.CaloriesPerPortion:
+            return PortionFood(row.Id, row.Name, row.AddedOn, row.CaloriesPerPortion)
+
+        raise RuntimeError(f"Unexpected error - unknown food type by {id}")
+
     def get_foods(self, telegram_user_id: str) -> List[Food]:
         sql = (f"SELECT Id, Name, CaloriesPer100Grams, CaloriesPerPortion, AddedOn "
                f"FROM dbo.Food "
@@ -63,7 +78,7 @@ class Repository:
             for row in food_rows if row.CaloriesPer100Grams]
         portion_foods: List[Food] = [
             PortionFood(row.Id, row.Name, row.AddedOn, row.CaloriesPerPortion)
-            for row in food_rows if row.CaloriesPerPortion]
+            for row in food_rows if row.CaloriesPerPortion]  # TODO exclude weighted_foods
         return weighted_foods + portion_foods
 
     def add_eaten_weighted_food(self, eaten_weighted_food: EatenWeightedFood, telegram_user_id: str):

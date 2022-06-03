@@ -26,7 +26,7 @@ class Service:
             return [response]
         else:
             # TODO can be multiple entries per day, gotta select first per yesterday
-            return [f'{response} Yesterday it was {weights[-2].weight_kilograms} kg.']
+            return [f'{response} Previously it was {weights[1].weight_kilograms} kg.']
 
     def add_weighted_food(self, food_name: str, calories_per_100_grams: Decimal, telegram_user_id: str) -> WeightedFood:
         return Repository().add_weighted_food(food_name, calories_per_100_grams, self.now(), telegram_user_id)
@@ -42,7 +42,7 @@ class Service:
         eaten_portion_food = EatenPortionFood(portion_food, self.now())
         Repository().add_eaten_portion_food(eaten_portion_food, telegram_user_id)
 
-    def get_eaten_calories_by_date(self, telegram_user_id: str) -> dict[date, Decimal]:  # TODO return tuple?
+    def get_eaten_calories_by_date(self, telegram_user_id: str) -> dict[date, Decimal]:
         eaten_foods = Repository().get_eaten_foods(telegram_user_id)
         eaten_food_by_date: defaultdict[date, Decimal] = defaultdict[date, Decimal](lambda: Decimal(0))
         for eaten_food in eaten_foods:
@@ -52,11 +52,15 @@ class Service:
         return eaten_food_by_date
 
     @staticmethod
+    def get_food(food_id: int, telegram_user_id: str) -> Food:
+        return Repository().get_food(food_id, telegram_user_id)
+
+    @staticmethod
     def search_food(food_name: str, telegram_user_id: str) -> Optional[Tuple[Food]]:
         foods = Repository().get_foods(telegram_user_id)
         candidates = []
         for food in foods:
-            food_name_parts = food_name.split()
+            food_name_parts = food_name.split()  # TODO search in db
             is_all_food_name_parts_matched: bool = True
             for food_name_part in food_name_parts:
                 if food_name_part not in food.name:
