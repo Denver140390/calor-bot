@@ -67,6 +67,21 @@ class Repository:
 
         raise RuntimeError(f"Unexpected error - unknown food type by {id}")
 
+    def find_food(self, food_name: str, telegram_user_id: str) -> Optional[Food]:
+        sql = (f"SELECT Id, Name, CaloriesPer100Grams, CaloriesPerPortion, AddedOn "
+               f"FROM dbo.Food "
+               f"WHERE Name = ? AND TelegramUserId = ? ")
+        row = self.__connect().cursor().execute(sql, food_name, telegram_user_id).fetchone()
+        if not row:
+            return None
+
+        if row.CaloriesPer100Grams:
+            return WeightedFood(row.Id, row.Name, row.AddedOn, row.CaloriesPer100Grams)
+        if row.CaloriesPerPortion:
+            return PortionFood(row.Id, row.Name, row.AddedOn, row.CaloriesPerPortion)
+
+        raise RuntimeError(f"Unexpected error - unknown food type by {id}")
+
     def get_foods(self, telegram_user_id: str) -> List[Food]:
         sql = (f"SELECT Id, Name, CaloriesPer100Grams, CaloriesPerPortion, AddedOn "
                f"FROM dbo.Food "

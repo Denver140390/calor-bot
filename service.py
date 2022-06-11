@@ -3,7 +3,7 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 from typing import List, Optional, Tuple
 from repository import Repository
-from models import Weight, WeightedFood, EatenWeightedFood, Food, PortionFood, EatenPortionFood, EatenFood
+from models import Weight, WeightedFood, EatenWeightedFood, Food, PortionFood, EatenPortionFood
 
 
 class Service:
@@ -54,6 +54,10 @@ class Service:
     @staticmethod
     def get_food(food_id: int, telegram_user_id: str) -> Food:
         return Repository().get_food(food_id, telegram_user_id)
+
+    @staticmethod
+    def find_food(food_name: str, telegram_user_id: str) -> Food:
+        return Repository().find_food(food_name, telegram_user_id)
 
     @staticmethod
     def search_food(food_name: str, telegram_user_id: str) -> Optional[Tuple[Food]]:
