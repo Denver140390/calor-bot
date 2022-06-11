@@ -19,6 +19,11 @@ import os
 
 # Stages
 START_ROUTES, END_ROUTES = range(2)
+CHOOSE_FOOD_TYPE = 'Choose food type'
+NEW_WEIGHTED_FOOD = 'Weighted'
+NEW_PORTION_FOOD = 'Portion'
+NEW_QUANTITY_FOOD = 'Quantity'
+NEW_COMPOSITION_FOOD = 'Composition'
 
 EAT = 'Eat'
 EAT_PORTION = 'Eat Portion'
@@ -26,10 +31,13 @@ ADD_NEW_FOOD = 'Add new food'
 EDIT_FOOD = 'Edit food'
 SHOW_EATEN_CALORIES = 'Show eaten calories'
 ENTER_FOOD_NAME = 'Enter food name'
+ENTER_NEW_FOOD_NAME = 'Enter new food name'
 ENTER_PORTION_FOOD_NAME = 'Enter portion food name'
-ENTER_FOOD_DATA = 'Enter food data'
+ENTER_NEW_WEIGHTED_FOOD_DATA = 'Enter new weighted food data'
 ENTER_PORTION_FOOD_DATA = 'Enter portion food data'
+ENTER_NEW_PORTION_FOOD_DATA = 'Enter new portion food data'
 CHOOSE_FROM_MULTIPLE_FOODS = 'Choose from multiple foods'
+EAT_FOOD_AFTER_ADDING = 'Eat food after adding'
 ENTER_FOOD_WEIGHT = 'Enter food weight'
 ADD_WEIGHT = 'Add weight'
 ENTER_WEIGHT = 'Enter weight'
@@ -95,9 +103,24 @@ def get_start_keyboard():
     return keyboard
 
 
+def get_food_type_keyboard():
+    keyboard = [
+        [
+            InlineKeyboardButton(NEW_WEIGHTED_FOOD, callback_data=str(NEW_WEIGHTED_FOOD)),
+            InlineKeyboardButton(NEW_PORTION_FOOD, callback_data=str(NEW_PORTION_FOOD))
+        ],
+        [
+            InlineKeyboardButton(NEW_QUANTITY_FOOD, callback_data=str(NEW_QUANTITY_FOOD)),
+            InlineKeyboardButton(NEW_COMPOSITION_FOOD, callback_data=str(NEW_COMPOSITION_FOOD)),
+        ]
+    ]
+    return keyboard
+
+
 def get_food_names_keyboard(foods: Tuple[Food]):
     foods_sorted = sorted(foods, key=lambda food: food.name)
     keyboard = [[InlineKeyboardButton(food.name, callback_data=food.id)] for food in foods_sorted]
+    # TODO cancel or add new food buttons
     return keyboard
 
 
@@ -118,38 +141,38 @@ def enter_food_name(update: Update, context: CallbackContext) -> str:
     context.user_data[FOOD_NAME_USER_DATA] = food_name
     candidates = service.search_food(food_name, update.effective_user.id)
     if not candidates:
-        update.message.reply_text("How many calories per 100 grams?")
-        return ENTER_FOOD_DATA
+        context.user_data[EAT_FOOD_AFTER_ADDING] = None  # the value does not matter, just adding a key
+        update.message.reply_text("Food type?", reply_markup=InlineKeyboardMarkup(get_food_type_keyboard()))
+        return CHOOSE_FOOD_TYPE
     if len(candidates) > 1:
         # TODO sort by abc or by with date time if name equals
         update.message.reply_text(
-            text=f"I know multiple of entries matching {food_name}. "
-                 f"Please choose one of them or type a new name if you want to create new food.",
+            text="Which one?",
             reply_markup=InlineKeyboardMarkup(get_food_names_keyboard(candidates)))
         return CHOOSE_FROM_MULTIPLE_FOODS
     food = candidates[0]
-    if not isinstance(food, WeightedFood):
-        update.message.reply_text(
-            f"This does not seem as a weighted food. Can you please tell me a more specific name?")
-        return ENTER_FOOD_NAME
-    weighted_food = food
-    update.message.reply_text(f"I know already ate {weighted_food.name}, how many grams am I going to eat?")
-    context.user_data[FOOD_USER_DATA] = weighted_food
-    return ENTER_FOOD_WEIGHT
+    return eat_food(food, update, context)
 
 
-def enter_food_data(update: Update, context: CallbackContext) -> str:
-    calories_per_100_grams_str = update.message.text.strip()
-    calories_per_100_grams = try_parse_decimal(calories_per_100_grams_str)
-    if not calories_per_100_grams:
-        update.message.reply_text(
-            "This does not seem as a number, can you please tell me a number of calories per 100 grams?")
-        return ENTER_FOOD_DATA
-    food_name = context.user_data[FOOD_NAME_USER_DATA]
-    food = service.add_weighted_food(food_name, calories_per_100_grams, update.effective_user.id)
+def eat_food(food: Food, update: Update, context: CallbackContext):
+    if isinstance(food, WeightedFood):
+        return eat_weighted_food(food, update, context)
+    if isinstance(food, PortionFood):
+        return eat_portion_food(food, update, context)
+    raise NotImplementedError("Unknown food type.")
+
+
+def eat_weighted_food(food: WeightedFood, update: Update, context: CallbackContext) -> str:
     context.user_data[FOOD_USER_DATA] = food
-    update.message.reply_text("How many grams will I eat?")
+    context.bot.send_message(chat_id=update.effective_chat.id, text="How many grams am I going to eat?")
     return ENTER_FOOD_WEIGHT
+
+
+def eat_portion_food(food: PortionFood, update: Update, context: CallbackContext) -> str:
+    service.add_eaten_portion_food(food, update.effective_user.id)
+    eaten_calories = service.get_eaten_calories_by_date(update.effective_user.id)
+    context.bot.send_message(chat_id=update.effective_chat.id, text=get_eaten_calories_text(eaten_calories))
+    return start_over(update, context)
 
 
 def eat_portion(update: Update, context: CallbackContext) -> str:
@@ -200,9 +223,7 @@ def choose_from_multiple_foods(update: Update, context: CallbackContext) -> str:
     query = update.callback_query
     food_id = int(query.data)
     food = service.get_food(food_id, update.effective_user.id)
-    context.bot.send_message(chat_id=update.effective_chat.id, text=f"How many grams am I going to eat?")
-    context.user_data[FOOD_USER_DATA] = food  # TODO decide by food type
-    return ENTER_FOOD_WEIGHT
+    return eat_food(food, update, context)
 
 
 def enter_food_weight(update: Update, context: CallbackContext) -> str:
@@ -218,8 +239,69 @@ def enter_food_weight(update: Update, context: CallbackContext) -> str:
     return start_over(update, context)
 
 
-# noinspection PyUnusedLocal
 def new_food(update: Update, context: CallbackContext) -> str:
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Food name?")
+    return ENTER_NEW_FOOD_NAME
+
+
+def enter_new_food_name(update: Update, context: CallbackContext) -> str:
+    food_name = update.message.text.strip()
+    context.user_data[FOOD_NAME_USER_DATA] = food_name
+    food = service.find_food(food_name, update.effective_user.id)
+    if food:
+        # TODO allow to create food with same name
+        context.bot.send_message(chat_id=update.effective_chat.id, text=f"I already know {food.name}.")
+        return start_over(update, context)
+    update.message.reply_text("Food type?", reply_markup=InlineKeyboardMarkup(get_food_type_keyboard()))
+    return CHOOSE_FOOD_TYPE
+
+
+def new_weighted_food(update: Update, context: CallbackContext) -> str:
+    context.bot.send_message(chat_id=update.effective_chat.id, text="How many calories per 100 grams?")
+    return ENTER_NEW_WEIGHTED_FOOD_DATA
+
+
+def enter_new_weighted_food_data(update: Update, context: CallbackContext) -> str:
+    calories_per_100_grams_str = update.message.text.strip()
+    calories_per_100_grams = try_parse_decimal(calories_per_100_grams_str)
+    if not calories_per_100_grams:
+        update.message.reply_text(
+            "This does not seem as a number, can you please tell me a number of calories per 100 grams?")
+        return ENTER_NEW_WEIGHTED_FOOD_DATA
+    food_name = context.user_data[FOOD_NAME_USER_DATA]
+    food = service.add_weighted_food(food_name, calories_per_100_grams, update.effective_user.id)
+    if context.user_data[EAT_FOOD_AFTER_ADDING]:
+        return eat_food(food, update, context)
+    return start_over(update, context)  # TODO suggest to eat added food
+
+
+def new_portion_food(update: Update, context: CallbackContext) -> str:
+    context.bot.send_message(chat_id=update.effective_chat.id, text="How many calories in portion?")
+    return ENTER_NEW_PORTION_FOOD_DATA
+
+
+def enter_new_portion_food_data(update: Update, context: CallbackContext) -> str:
+    calories_per_portion_str = update.message.text.strip()
+    calories_per_portion = try_parse_decimal(calories_per_portion_str)
+    if not calories_per_portion:
+        update.message.reply_text(
+            "This does not seem as a number, can you please tell me a number of calories per portion?")
+        return ENTER_NEW_PORTION_FOOD_DATA
+    food_name = context.user_data[FOOD_NAME_USER_DATA]
+    food = service.add_portion_food(food_name, calories_per_portion, update.effective_user.id)
+    context.user_data[FOOD_USER_DATA] = food
+    if EAT_FOOD_AFTER_ADDING in context.user_data:
+        return eat_food(food, update, context)
+    return start_over(update, context)  # TODO suggest to eat added food
+
+
+# noinspection PyUnusedLocal
+def new_quantity_food(update: Update, context: CallbackContext) -> str:
+    pass
+
+
+# noinspection PyUnusedLocal
+def new_composition_food(update: Update, context: CallbackContext) -> str:
     pass
 
 
@@ -289,14 +371,26 @@ dispatcher.add_handler(ConversationHandler(
             CallbackQueryHandler(show_eaten_calories, pattern=f"^{SHOW_EATEN_CALORIES}$"),
             CallbackQueryHandler(add_weight, pattern=f"^{ADD_WEIGHT}$"),
         ],
+        CHOOSE_FOOD_TYPE: [
+            CallbackQueryHandler(new_weighted_food, pattern=f"^{NEW_WEIGHTED_FOOD}$"),
+            CallbackQueryHandler(new_portion_food, pattern=f"^{NEW_PORTION_FOOD}$"),
+            CallbackQueryHandler(new_quantity_food, pattern=f"^{NEW_QUANTITY_FOOD}$"),
+            CallbackQueryHandler(new_composition_food, pattern=f"^{NEW_COMPOSITION_FOOD}$")
+        ],
         ENTER_FOOD_NAME: [
             MessageHandler(Filters.text, enter_food_name)
         ],
+        ENTER_NEW_FOOD_NAME: [
+            MessageHandler(Filters.text, enter_new_food_name)
+        ],
+        ENTER_NEW_WEIGHTED_FOOD_DATA: [
+            MessageHandler(Filters.text, enter_new_weighted_food_data)
+        ],
+        ENTER_NEW_PORTION_FOOD_DATA: [
+            MessageHandler(Filters.text, enter_new_portion_food_data)
+        ],
         ENTER_PORTION_FOOD_NAME: [
             MessageHandler(Filters.text, enter_portion_food_name)
-        ],
-        ENTER_FOOD_DATA: [
-            MessageHandler(Filters.text, enter_food_data)
         ],
         ENTER_PORTION_FOOD_DATA: [
             MessageHandler(Filters.text, enter_portion_food_data)

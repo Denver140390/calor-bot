@@ -56,6 +56,10 @@ class Service:
         return Repository().get_food(food_id, telegram_user_id)
 
     @staticmethod
+    def find_food(food_name: str, telegram_user_id: str) -> Food:
+        return Repository().find_food(food_name, telegram_user_id)
+
+    @staticmethod
     def search_food(food_name: str, telegram_user_id: str) -> Optional[Tuple[Food]]:
         foods = Repository().get_foods(telegram_user_id)
         candidates = []
