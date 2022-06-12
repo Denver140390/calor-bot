@@ -3,7 +3,7 @@ from datetime import datetime, date, timedelta
 from decimal import Decimal
 from typing import List, Optional, Tuple
 from repository import Repository
-from models import Weight, WeightedFood, EatenWeightedFood, Food, PortionFood, EatenPortionFood, EatenFood
+from models import Weight, WeightedFood, EatenWeightedFood, Food, PortionFood, EatenPortionFood
 
 
 class Service:

@@ -26,13 +26,11 @@ NEW_QUANTITY_FOOD = 'Quantity'
 NEW_COMPOSITION_FOOD = 'Composition'
 
 EAT = 'Eat'
-EAT_PORTION = 'Eat Portion'
 ADD_NEW_FOOD = 'Add new food'
 EDIT_FOOD = 'Edit food'
 SHOW_EATEN_CALORIES = 'Show eaten calories'
 ENTER_FOOD_NAME = 'Enter food name'
 ENTER_NEW_FOOD_NAME = 'Enter new food name'
-ENTER_PORTION_FOOD_NAME = 'Enter portion food name'
 ENTER_NEW_WEIGHTED_FOOD_DATA = 'Enter new weighted food data'
 ENTER_PORTION_FOOD_DATA = 'Enter portion food data'
 ENTER_NEW_PORTION_FOOD_DATA = 'Enter new portion food data'
@@ -88,8 +86,7 @@ def start_over(update: Update, context: CallbackContext) -> str:
 def get_start_keyboard():
     keyboard = [
         [
-            InlineKeyboardButton(EAT, callback_data=str(EAT)),
-            InlineKeyboardButton(EAT_PORTION, callback_data=str(EAT_PORTION))
+            InlineKeyboardButton(EAT, callback_data=str(EAT))
         ],
         [
             InlineKeyboardButton(SHOW_EATEN_CALORIES, callback_data=str(SHOW_EATEN_CALORIES)),
@@ -175,35 +172,6 @@ def eat_portion_food(food: PortionFood, update: Update, context: CallbackContext
     return start_over(update, context)
 
 
-def eat_portion(update: Update, context: CallbackContext) -> str:
-    context.bot.send_message(chat_id=update.effective_chat.id, text="What am I going to eat?")
-    return ENTER_PORTION_FOOD_NAME
-
-
-def enter_portion_food_name(update: Update, context: CallbackContext) -> str:
-    food_name = update.message.text.strip()
-    context.user_data[FOOD_NAME_USER_DATA] = food_name
-    candidates = service.search_food(food_name, update.effective_user.id)
-    if not candidates:
-        update.message.reply_text("How many calories?")
-        return ENTER_PORTION_FOOD_DATA
-    if len(candidates) > 1:
-        update.message.reply_text(
-            f"I know multiple of entries matching {food_name}. Can you please tell me a more specific name?")
-        return ENTER_PORTION_FOOD_NAME
-    food = candidates[0]
-    if not isinstance(food, PortionFood):
-        update.message.reply_text(
-            f"This does not seem as a portion food. Can you please tell me a more specific name?")
-        return ENTER_PORTION_FOOD_NAME
-    portion_food = food
-    update.message.reply_text(f"I know {portion_food.name}, thanks.")
-    service.add_eaten_portion_food(portion_food, update.effective_user.id)
-    eaten_calories = service.get_eaten_calories_by_date(update.effective_user.id)
-    update.message.reply_text(get_eaten_calories_text(eaten_calories))
-    return start_over(update, context)
-
-
 def enter_portion_food_data(update: Update, context: CallbackContext) -> str:
     calories_per_portion_str = update.message.text.strip()
     calories_per_portion = try_parse_decimal(calories_per_portion_str)
@@ -271,6 +239,7 @@ def enter_new_weighted_food_data(update: Update, context: CallbackContext) -> st
     food_name = context.user_data[FOOD_NAME_USER_DATA]
     food = service.add_weighted_food(food_name, calories_per_100_grams, update.effective_user.id)
     if context.user_data[EAT_FOOD_AFTER_ADDING]:
+        del context.user_data[EAT_FOOD_AFTER_ADDING]
         return eat_food(food, update, context)
     return start_over(update, context)  # TODO suggest to eat added food
 
@@ -291,6 +260,7 @@ def enter_new_portion_food_data(update: Update, context: CallbackContext) -> str
     food = service.add_portion_food(food_name, calories_per_portion, update.effective_user.id)
     context.user_data[FOOD_USER_DATA] = food
     if EAT_FOOD_AFTER_ADDING in context.user_data:
+        del context.user_data[EAT_FOOD_AFTER_ADDING]
         return eat_food(food, update, context)
     return start_over(update, context)  # TODO suggest to eat added food
 
@@ -365,7 +335,6 @@ dispatcher.add_handler(ConversationHandler(
     states={
         START_ROUTES: [
             CallbackQueryHandler(eat, pattern=f"^{EAT}$"),
-            CallbackQueryHandler(eat_portion, pattern=f"^{EAT_PORTION}$"),
             CallbackQueryHandler(new_food, pattern=f"^{ADD_NEW_FOOD}$"),
             CallbackQueryHandler(edit_food, pattern=f"^{EDIT_FOOD}$"),
             CallbackQueryHandler(show_eaten_calories, pattern=f"^{SHOW_EATEN_CALORIES}$"),
@@ -388,9 +357,6 @@ dispatcher.add_handler(ConversationHandler(
         ],
         ENTER_NEW_PORTION_FOOD_DATA: [
             MessageHandler(Filters.text, enter_new_portion_food_data)
-        ],
-        ENTER_PORTION_FOOD_NAME: [
-            MessageHandler(Filters.text, enter_portion_food_name)
         ],
         ENTER_PORTION_FOOD_DATA: [
             MessageHandler(Filters.text, enter_portion_food_data)
