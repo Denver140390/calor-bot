@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Optional, Tuple, List
-
+from collections import defaultdict
 from models import PortionFood, WeightedFood, Food
 from service import Service
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
@@ -148,9 +148,14 @@ def get_eat_or_start_over_keyboard():
 
 
 def get_food_names_keyboard(foods: Tuple[Food]):
-    # TODO sort by abc or by date time if name equals
-    foods_sorted = sorted(foods, key=lambda food: food.name)
-    keyboard = [[InlineKeyboardButton(food.name, callback_data=food.id)] for food in foods_sorted]
+    foods_sorted = sorted(foods, key=lambda food: food.name + str(food.added_on))
+    food_name_by_count: defaultdict[str, int] = defaultdict[str, int](lambda: 0)
+    for f in foods:
+        food_name_by_count[f.name] += 1
+    keyboard: List[List[InlineKeyboardButton]] = []
+    for f in foods_sorted:
+        food_name = f.name if food_name_by_count[f.name] == 1 else f"{f.name} {f.added_on.date()}"
+        keyboard.append([InlineKeyboardButton(food_name, callback_data=f.id)])
     keyboard.append([InlineKeyboardButton(START_OVER, callback_data=START_OVER)])
     return keyboard
 
