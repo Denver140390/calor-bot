@@ -25,6 +25,10 @@ NEW_PORTION_FOOD = 'Portion'
 NEW_QUANTITY_FOOD = 'Quantity'
 NEW_COMPOSITION_FOOD = 'Composition'
 
+EAT_ADDED_FOOD = 'Eat added food'
+START_OVER = 'Start over'
+START_OVER_OR_EAT_ADDED_FOOD = 'START_OVER_OR_EAT_ADDED_FOOD'
+
 EAT = 'Eat'
 ADD_NEW_FOOD = 'Add new food'
 EDIT_FOOD = 'Edit food'
@@ -32,7 +36,6 @@ SHOW_EATEN_CALORIES = 'Show eaten calories'
 ENTER_FOOD_NAME = 'Enter food name'
 ENTER_NEW_FOOD_NAME = 'Enter new food name'
 ENTER_NEW_WEIGHTED_FOOD_DATA = 'Enter new weighted food data'
-ENTER_PORTION_FOOD_DATA = 'Enter portion food data'
 ENTER_NEW_PORTION_FOOD_DATA = 'Enter new portion food data'
 CHOOSE_FROM_MULTIPLE_FOODS = 'Choose from multiple foods'
 EAT_FOOD_AFTER_ADDING = 'Eat food after adding'
@@ -114,6 +117,16 @@ def get_food_type_keyboard():
     return keyboard
 
 
+def get_eat_or_start_over_keyboard():
+    keyboard = [
+        [
+            InlineKeyboardButton(EAT_ADDED_FOOD, callback_data=str(EAT_ADDED_FOOD)),
+            InlineKeyboardButton(START_OVER, callback_data=str(START_OVER))
+        ]
+    ]
+    return keyboard
+
+
 def get_food_names_keyboard(foods: Tuple[Food]):
     foods_sorted = sorted(foods, key=lambda food: food.name)
     keyboard = [[InlineKeyboardButton(food.name, callback_data=food.id)] for food in foods_sorted]
@@ -151,7 +164,16 @@ def enter_food_name(update: Update, context: CallbackContext) -> str:
     return eat_food(food, update, context)
 
 
-def eat_food(food: Food, update: Update, context: CallbackContext):
+def eat_food(food: Food, update: Update, context: CallbackContext) -> str:
+    if isinstance(food, WeightedFood):
+        return eat_weighted_food(food, update, context)
+    if isinstance(food, PortionFood):
+        return eat_portion_food(food, update, context)
+    raise NotImplementedError("Unknown food type.")
+
+
+def eat_food_from_context(update: Update, context: CallbackContext) -> str:
+    food = context.user_data[FOOD_USER_DATA]
     if isinstance(food, WeightedFood):
         return eat_weighted_food(food, update, context)
     if isinstance(food, PortionFood):
@@ -169,21 +191,6 @@ def eat_portion_food(food: PortionFood, update: Update, context: CallbackContext
     service.add_eaten_portion_food(food, update.effective_user.id)
     eaten_calories = service.get_eaten_calories_by_date(update.effective_user.id)
     context.bot.send_message(chat_id=update.effective_chat.id, text=get_eaten_calories_text(eaten_calories))
-    return start_over(update, context)
-
-
-def enter_portion_food_data(update: Update, context: CallbackContext) -> str:
-    calories_per_portion_str = update.message.text.strip()
-    calories_per_portion = try_parse_decimal(calories_per_portion_str)
-    if not calories_per_portion:
-        update.message.reply_text(
-            "This does not seem as a number, can you please tell me a number of calories per portion?")
-        return ENTER_PORTION_FOOD_DATA
-    food_name = context.user_data[FOOD_NAME_USER_DATA]
-    portion_food = service.add_portion_food(food_name, calories_per_portion, update.effective_user.id)
-    service.add_eaten_portion_food(portion_food, update.effective_user.id)
-    eaten_calories = service.get_eaten_calories_by_date(update.effective_user.id)
-    update.message.reply_text(get_eaten_calories_text(eaten_calories))
     return start_over(update, context)
 
 
@@ -218,6 +225,7 @@ def enter_new_food_name(update: Update, context: CallbackContext) -> str:
     food = service.find_food(food_name, update.effective_user.id)
     if food:
         # TODO allow to create food with same name
+        # TODO or suggest eating
         context.bot.send_message(chat_id=update.effective_chat.id, text=f"I already know {food.name}.")
         return start_over(update, context)
     update.message.reply_text("Food type?", reply_markup=InlineKeyboardMarkup(get_food_type_keyboard()))
@@ -262,7 +270,11 @@ def finish_adding_new_food(food: Food, update: Update, context: CallbackContext)
     if EAT_FOOD_AFTER_ADDING in context.user_data:
         del context.user_data[EAT_FOOD_AFTER_ADDING]
         return eat_food(food, update, context)
-    return start_over(update, context)  # TODO suggest to eat added food
+    update.message.reply_text(
+        text="Eat added food or start over?",
+        reply_markup=InlineKeyboardMarkup(get_eat_or_start_over_keyboard()))
+    context.user_data[FOOD_USER_DATA] = food
+    return START_OVER_OR_EAT_ADDED_FOOD
 
 
 # noinspection PyUnusedLocal
@@ -331,9 +343,6 @@ dispatcher.add_handler(ConversationHandler(
         ENTER_NEW_PORTION_FOOD_DATA: [
             MessageHandler(Filters.text, enter_new_portion_food_data)
         ],
-        ENTER_PORTION_FOOD_DATA: [
-            MessageHandler(Filters.text, enter_portion_food_data)
-        ],
         CHOOSE_FROM_MULTIPLE_FOODS: [
             CallbackQueryHandler(choose_from_multiple_foods)
         ],
@@ -342,6 +351,10 @@ dispatcher.add_handler(ConversationHandler(
         ],
         ENTER_WEIGHT: [
             MessageHandler(Filters.text, enter_weight)
+        ],
+        START_OVER_OR_EAT_ADDED_FOOD: [
+            CallbackQueryHandler(start_over, pattern=f"^{START_OVER}$"),
+            CallbackQueryHandler(eat_food_from_context, pattern=f"^{EAT_ADDED_FOOD}$")
         ]
     },
     fallbacks=[CommandHandler("start", start)],
