@@ -26,25 +26,29 @@ NEW_QUANTITY_FOOD = 'Quantity'
 NEW_COMPOSITION_FOOD = 'Composition'
 
 EAT_ADDED_FOOD = 'Eat added food'
+EAT_FOUND_FOOD = 'Eat found food'
+ADD_WITH_SAME_NAME = 'Add with same name'
 START_OVER = 'Start over'
 START_OVER_OR_EAT_ADDED_FOOD = 'START_OVER_OR_EAT_ADDED_FOOD'
+ADD_SAME_OR_EAT_OR_START_OVER = 'ADD_SAME_OR_EAT_OR_START_OVER'
 
 EAT = 'Eat'
 ADD_NEW_FOOD = 'Add new food'
 EDIT_FOOD = 'Edit food'
 SHOW_EATEN_CALORIES = 'Show eaten calories'
-ENTER_FOOD_NAME = 'Enter food name'
+ENTER_FOOD_NAME_TO_EAT = 'Enter food name'
 ENTER_NEW_FOOD_NAME = 'Enter new food name'
 ENTER_NEW_WEIGHTED_FOOD_DATA = 'Enter new weighted food data'
 ENTER_NEW_PORTION_FOOD_DATA = 'Enter new portion food data'
 CHOOSE_FROM_MULTIPLE_FOODS = 'Choose from multiple foods'
-EAT_FOOD_AFTER_ADDING = 'Eat food after adding'
 ENTER_FOOD_WEIGHT = 'Enter food weight'
 ADD_WEIGHT = 'Add weight'
 ENTER_WEIGHT = 'Enter weight'
 
-FOOD_USER_DATA = 'food'
-FOOD_NAME_USER_DATA = 'food_name'
+EAT_FOOD_AFTER_ADDING_USER_DATA = 'EAT_FOOD_AFTER_ADDING_USER_DATA'
+FOOD_USER_DATA = 'FOOD_USER_DATA'
+FOOD_NAME_USER_DATA = 'FOOD_NAME_USER_DATA'
+IS_NEW_FOOD_WITH_SAME_NAME_ALLOWED_USER_DATA = 'ALLOWED_NEW_FOOD_WITH_SAME_NAME_USER_DATA'
 
 # TODO query.answer() to stop loaded? https://core.telegram.org/bots/api#callbackquery
 
@@ -120,6 +124,19 @@ def get_food_type_keyboard():
     return keyboard
 
 
+def get_add_same_or_eat_or_start_over_keyboard():
+    keyboard = [
+        [
+            InlineKeyboardButton(ADD_WITH_SAME_NAME, callback_data=ADD_WITH_SAME_NAME),
+            InlineKeyboardButton(EAT_FOUND_FOOD, callback_data=EAT_FOUND_FOOD)
+        ],
+        [
+            InlineKeyboardButton(START_OVER, callback_data=START_OVER)
+        ]
+    ]
+    return keyboard
+
+
 def get_eat_or_start_over_keyboard():
     keyboard = [
         [
@@ -135,7 +152,6 @@ def get_food_names_keyboard(foods: Tuple[Food]):
     foods_sorted = sorted(foods, key=lambda food: food.name)
     keyboard = [[InlineKeyboardButton(food.name, callback_data=food.id)] for food in foods_sorted]
     keyboard.append([InlineKeyboardButton(START_OVER, callback_data=START_OVER)])
-    # TODO button: add new food
     return keyboard
 
 
@@ -148,15 +164,15 @@ def get_eaten_calories_text(eaten_calories: dict[date, Decimal]) -> str:
 
 def eat(update: Update, context: CallbackContext) -> str:
     context.bot.send_message(chat_id=update.effective_chat.id, text="Food name?")
-    return ENTER_FOOD_NAME
+    return ENTER_FOOD_NAME_TO_EAT
 
 
-def enter_food_name(update: Update, context: CallbackContext) -> str:
+def enter_food_name_to_eat(update: Update, context: CallbackContext) -> str:
     food_name = update.message.text.strip()
     context.user_data[FOOD_NAME_USER_DATA] = food_name
     candidates = service.search_food(food_name, update.effective_user.id)
     if not candidates:
-        context.user_data[EAT_FOOD_AFTER_ADDING] = None  # the value does not matter, just adding a key
+        context.user_data[EAT_FOOD_AFTER_ADDING_USER_DATA] = None  # the value does not matter, just adding a key
         update.message.reply_text("Food type?", reply_markup=InlineKeyboardMarkup(get_food_type_keyboard()))
         return CHOOSE_FOOD_TYPE
     if len(candidates) > 1:
@@ -223,16 +239,31 @@ def new_food(update: Update, context: CallbackContext) -> str:
     return ENTER_NEW_FOOD_NAME
 
 
+def add_food_same_name(update: Update, context: CallbackContext) -> str:
+    context.user_data[IS_NEW_FOOD_WITH_SAME_NAME_ALLOWED_USER_DATA] = None  # only key is used
+    food_name = context.user_data[FOOD_NAME_USER_DATA]
+    return enter_food_name(food_name, update, context)
+
+
 def enter_new_food_name(update: Update, context: CallbackContext) -> str:
     food_name = update.message.text.strip()
     context.user_data[FOOD_NAME_USER_DATA] = food_name
+    return enter_food_name(food_name, update, context)
+
+
+def enter_food_name(food_name: str, update: Update, context: CallbackContext) -> str:
     food = service.find_food(food_name, update.effective_user.id)
-    if food:
-        # TODO allow to create food with same name
-        # TODO or suggest eating
-        context.bot.send_message(chat_id=update.effective_chat.id, text=f"I already know {food.name}.")
-        return start_over(update, context)
-    update.message.reply_text("Food type?", reply_markup=InlineKeyboardMarkup(get_food_type_keyboard()))
+    if food and IS_NEW_FOOD_WITH_SAME_NAME_ALLOWED_USER_DATA not in context.user_data:
+        update.message.reply_text(
+            f"I already know {food.name}.",
+            reply_markup=InlineKeyboardMarkup(get_add_same_or_eat_or_start_over_keyboard()))
+        context.user_data[FOOD_USER_DATA] = food
+        return ADD_SAME_OR_EAT_OR_START_OVER
+    del context.user_data[IS_NEW_FOOD_WITH_SAME_NAME_ALLOWED_USER_DATA]
+    context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text="Food type?",
+        reply_markup=InlineKeyboardMarkup(get_food_type_keyboard()))
     return CHOOSE_FOOD_TYPE
 
 
@@ -271,8 +302,8 @@ def enter_new_portion_food_data(update: Update, context: CallbackContext) -> str
 
 
 def finish_adding_new_food(food: Food, update: Update, context: CallbackContext) -> str:
-    if EAT_FOOD_AFTER_ADDING in context.user_data:
-        del context.user_data[EAT_FOOD_AFTER_ADDING]
+    if EAT_FOOD_AFTER_ADDING_USER_DATA in context.user_data:
+        del context.user_data[EAT_FOOD_AFTER_ADDING_USER_DATA]
         return eat_food(food, update, context)
     update.message.reply_text(
         text="Eat added food or start over?",
@@ -336,8 +367,8 @@ dispatcher.add_handler(ConversationHandler(
             CallbackQueryHandler(new_composition_food, pattern=f"^{NEW_COMPOSITION_FOOD}$"),
             CallbackQueryHandler(start_over, pattern=f"^{START_OVER}$")
         ],
-        ENTER_FOOD_NAME: [
-            MessageHandler(Filters.text, enter_food_name)
+        ENTER_FOOD_NAME_TO_EAT: [
+            MessageHandler(Filters.text, enter_food_name_to_eat)
         ],
         ENTER_NEW_FOOD_NAME: [
             MessageHandler(Filters.text, enter_new_food_name)
@@ -361,6 +392,12 @@ dispatcher.add_handler(ConversationHandler(
         START_OVER_OR_EAT_ADDED_FOOD: [
             CallbackQueryHandler(start_over, pattern=f"^{START_OVER}$"),
             CallbackQueryHandler(eat_food_from_context, pattern=f"^{EAT_ADDED_FOOD}$")
+        ],
+        ADD_SAME_OR_EAT_OR_START_OVER: [
+            CallbackQueryHandler(start_over, pattern=f"^{START_OVER}$"),
+            CallbackQueryHandler(eat_food_from_context, pattern=f"^{EAT_FOUND_FOOD}$"),
+            CallbackQueryHandler(add_food_same_name, pattern=f"^{ADD_WITH_SAME_NAME}$")
+
         ]
     },
     fallbacks=[CommandHandler("start", start)],
