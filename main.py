@@ -89,15 +89,15 @@ def start_over(update: Update, context: CallbackContext) -> str:
 def get_start_keyboard():
     keyboard = [
         [
-            InlineKeyboardButton(EAT, callback_data=str(EAT))
+            InlineKeyboardButton(EAT, callback_data=EAT)
         ],
         [
-            InlineKeyboardButton(SHOW_EATEN_CALORIES, callback_data=str(SHOW_EATEN_CALORIES)),
-            InlineKeyboardButton(ADD_NEW_FOOD, callback_data=str(ADD_NEW_FOOD)),
-            InlineKeyboardButton(EDIT_FOOD, callback_data=str(EDIT_FOOD))
+            InlineKeyboardButton(SHOW_EATEN_CALORIES, callback_data=SHOW_EATEN_CALORIES),
+            InlineKeyboardButton(ADD_NEW_FOOD, callback_data=ADD_NEW_FOOD),
+            InlineKeyboardButton(EDIT_FOOD, callback_data=EDIT_FOOD)
         ],
         [
-            InlineKeyboardButton(ADD_WEIGHT, callback_data=str(ADD_WEIGHT))
+            InlineKeyboardButton(ADD_WEIGHT, callback_data=ADD_WEIGHT)
         ]
     ]
     return keyboard
@@ -106,12 +106,15 @@ def get_start_keyboard():
 def get_food_type_keyboard():
     keyboard = [
         [
-            InlineKeyboardButton(NEW_WEIGHTED_FOOD, callback_data=str(NEW_WEIGHTED_FOOD)),
-            InlineKeyboardButton(NEW_PORTION_FOOD, callback_data=str(NEW_PORTION_FOOD))
+            InlineKeyboardButton(NEW_WEIGHTED_FOOD, callback_data=NEW_WEIGHTED_FOOD),
+            InlineKeyboardButton(NEW_PORTION_FOOD, callback_data=NEW_PORTION_FOOD)
         ],
         [
-            InlineKeyboardButton(NEW_QUANTITY_FOOD, callback_data=str(NEW_QUANTITY_FOOD)),
-            InlineKeyboardButton(NEW_COMPOSITION_FOOD, callback_data=str(NEW_COMPOSITION_FOOD)),
+            InlineKeyboardButton(NEW_QUANTITY_FOOD, callback_data=NEW_QUANTITY_FOOD),
+            InlineKeyboardButton(NEW_COMPOSITION_FOOD, callback_data=NEW_COMPOSITION_FOOD),
+        ],
+        [
+            InlineKeyboardButton(START_OVER, callback_data=START_OVER)
         ]
     ]
     return keyboard
@@ -120,17 +123,19 @@ def get_food_type_keyboard():
 def get_eat_or_start_over_keyboard():
     keyboard = [
         [
-            InlineKeyboardButton(EAT_ADDED_FOOD, callback_data=str(EAT_ADDED_FOOD)),
-            InlineKeyboardButton(START_OVER, callback_data=str(START_OVER))
+            InlineKeyboardButton(EAT_ADDED_FOOD, callback_data=EAT_ADDED_FOOD),
+            InlineKeyboardButton(START_OVER, callback_data=START_OVER)
         ]
     ]
     return keyboard
 
 
 def get_food_names_keyboard(foods: Tuple[Food]):
+    # TODO sort by abc or by date time if name equals
     foods_sorted = sorted(foods, key=lambda food: food.name)
     keyboard = [[InlineKeyboardButton(food.name, callback_data=food.id)] for food in foods_sorted]
-    # TODO buttons: cancel or add new food
+    keyboard.append([InlineKeyboardButton(START_OVER, callback_data=START_OVER)])
+    # TODO button: add new food
     return keyboard
 
 
@@ -155,7 +160,6 @@ def enter_food_name(update: Update, context: CallbackContext) -> str:
         update.message.reply_text("Food type?", reply_markup=InlineKeyboardMarkup(get_food_type_keyboard()))
         return CHOOSE_FOOD_TYPE
     if len(candidates) > 1:
-        # TODO sort by abc or by with date time if name equals
         update.message.reply_text(
             text="Which one?",
             reply_markup=InlineKeyboardMarkup(get_food_names_keyboard(candidates)))
@@ -329,7 +333,8 @@ dispatcher.add_handler(ConversationHandler(
             CallbackQueryHandler(new_weighted_food, pattern=f"^{NEW_WEIGHTED_FOOD}$"),
             CallbackQueryHandler(new_portion_food, pattern=f"^{NEW_PORTION_FOOD}$"),
             CallbackQueryHandler(new_quantity_food, pattern=f"^{NEW_QUANTITY_FOOD}$"),
-            CallbackQueryHandler(new_composition_food, pattern=f"^{NEW_COMPOSITION_FOOD}$")
+            CallbackQueryHandler(new_composition_food, pattern=f"^{NEW_COMPOSITION_FOOD}$"),
+            CallbackQueryHandler(start_over, pattern=f"^{START_OVER}$")
         ],
         ENTER_FOOD_NAME: [
             MessageHandler(Filters.text, enter_food_name)
@@ -344,6 +349,7 @@ dispatcher.add_handler(ConversationHandler(
             MessageHandler(Filters.text, enter_new_portion_food_data)
         ],
         CHOOSE_FROM_MULTIPLE_FOODS: [
+            CallbackQueryHandler(start_over, pattern=f"^{START_OVER}$"),
             CallbackQueryHandler(choose_from_multiple_foods)
         ],
         ENTER_FOOD_WEIGHT: [
