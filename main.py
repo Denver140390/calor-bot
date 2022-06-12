@@ -117,7 +117,7 @@ def get_food_type_keyboard():
 def get_food_names_keyboard(foods: Tuple[Food]):
     foods_sorted = sorted(foods, key=lambda food: food.name)
     keyboard = [[InlineKeyboardButton(food.name, callback_data=food.id)] for food in foods_sorted]
-    # TODO cancel or add new food buttons
+    # TODO buttons: cancel or add new food
     return keyboard
 
 
@@ -129,7 +129,7 @@ def get_eaten_calories_text(eaten_calories: dict[date, Decimal]) -> str:
 
 
 def eat(update: Update, context: CallbackContext) -> str:
-    context.bot.send_message(chat_id=update.effective_chat.id, text="What am I going to eat?")
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Food name?")
     return ENTER_FOOD_NAME
 
 
@@ -161,7 +161,7 @@ def eat_food(food: Food, update: Update, context: CallbackContext):
 
 def eat_weighted_food(food: WeightedFood, update: Update, context: CallbackContext) -> str:
     context.user_data[FOOD_USER_DATA] = food
-    context.bot.send_message(chat_id=update.effective_chat.id, text="How many grams am I going to eat?")
+    context.bot.send_message(chat_id=update.effective_chat.id, text="How many grams?")
     return ENTER_FOOD_WEIGHT
 
 
@@ -238,14 +238,11 @@ def enter_new_weighted_food_data(update: Update, context: CallbackContext) -> st
         return ENTER_NEW_WEIGHTED_FOOD_DATA
     food_name = context.user_data[FOOD_NAME_USER_DATA]
     food = service.add_weighted_food(food_name, calories_per_100_grams, update.effective_user.id)
-    if context.user_data[EAT_FOOD_AFTER_ADDING]:
-        del context.user_data[EAT_FOOD_AFTER_ADDING]
-        return eat_food(food, update, context)
-    return start_over(update, context)  # TODO suggest to eat added food
+    return finish_adding_new_food(food, update, context)
 
 
 def new_portion_food(update: Update, context: CallbackContext) -> str:
-    context.bot.send_message(chat_id=update.effective_chat.id, text="How many calories in portion?")
+    context.bot.send_message(chat_id=update.effective_chat.id, text="How many calories in a portion?")
     return ENTER_NEW_PORTION_FOOD_DATA
 
 
@@ -254,11 +251,14 @@ def enter_new_portion_food_data(update: Update, context: CallbackContext) -> str
     calories_per_portion = try_parse_decimal(calories_per_portion_str)
     if not calories_per_portion:
         update.message.reply_text(
-            "This does not seem as a number, can you please tell me a number of calories per portion?")
+            "This does not seem as a number, can you please tell me a number of calories in a portion?")
         return ENTER_NEW_PORTION_FOOD_DATA
     food_name = context.user_data[FOOD_NAME_USER_DATA]
     food = service.add_portion_food(food_name, calories_per_portion, update.effective_user.id)
-    context.user_data[FOOD_USER_DATA] = food
+    return finish_adding_new_food(food, update, context)
+
+
+def finish_adding_new_food(food: Food, update: Update, context: CallbackContext) -> str:
     if EAT_FOOD_AFTER_ADDING in context.user_data:
         del context.user_data[EAT_FOOD_AFTER_ADDING]
         return eat_food(food, update, context)
@@ -299,36 +299,9 @@ def enter_weight(update: Update, context: CallbackContext) -> str:
     return start_over(update, context)
 
 
-def process_message(update: Update, context: CallbackContext):
-    text = update.message.text
-    weight = try_parse_decimal(text)
-    if not weight:
-        context.bot.send_message(chat_id=update.effective_chat.id, text='Unknown message pattern.')
-        return
-    response_messages = service.add_weight(weight, update.effective_user.id)
-    [context.bot.send_message(chat_id=update.effective_chat.id, text=response) for response in response_messages]
-
-
-def echo(update: Update, context: CallbackContext):
-    context.bot.send_message(chat_id=update.effective_chat.id, text=update.message.text)
-
-
-def unknown(update: Update, context: CallbackContext):
-    context.bot.send_message(chat_id=update.effective_chat.id, text="Sorry, I didn't understand that command.")
-
-
 # noinspection SpellCheckingInspection
 updater = Updater(token=os.environ['TELEGRAMTOKEN'])
 dispatcher = updater.dispatcher
-
-# dispatcher.add_handler(CommandHandler('food', food))
-# dispatcher.add_handler(CommandHandler('eat', eat))
-
-# echo_handler = MessageHandler(Filters.text & (~Filters.command), echo)
-# dispatcher.add_handler(echo_handler)
-
-# dispatcher.add_handler(MessageHandler(~Filters.command, process_message))
-# dispatcher.add_handler(MessageHandler(Filters.command, unknown))
 
 dispatcher.add_handler(ConversationHandler(
     entry_points=[CommandHandler("start", start)],
