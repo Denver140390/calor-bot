@@ -17,6 +17,8 @@ from telegram.ext import (
 import logging
 import os
 
+SHOW_EATEN_CALORIES_SINCE_DAYS_AGO = 6
+
 # Stages
 START_ROUTES, END_ROUTES = range(2)
 CHOOSE_FOOD_TYPE = 'Choose food type'
@@ -214,7 +216,9 @@ def eat_weighted_food(food: WeightedFood, update: Update, context: CallbackConte
 
 def eat_portion_food(food: PortionFood, update: Update, context: CallbackContext) -> str:
     service.add_eaten_portion_food(food, update.effective_user.id)
-    eaten_calories = service.get_eaten_calories_by_date(update.effective_user.id)
+    eaten_calories = service.get_eaten_calories_by_date(
+        since_days_ago=SHOW_EATEN_CALORIES_SINCE_DAYS_AGO,
+        telegram_user_id=update.effective_user.id)
     context.bot.send_message(chat_id=update.effective_chat.id, text=get_eaten_calories_text(eaten_calories))
     return start_over(update, context)
 
@@ -234,7 +238,9 @@ def enter_food_weight(update: Update, context: CallbackContext) -> str:
         return ENTER_FOOD_WEIGHT
     food = context.user_data[FOOD_USER_DATA]
     service.add_eaten_food(food, weight_grams, update.effective_user.id)
-    eaten_calories = service.get_eaten_calories_by_date(update.effective_user.id)
+    eaten_calories = service.get_eaten_calories_by_date(
+        since_days_ago=SHOW_EATEN_CALORIES_SINCE_DAYS_AGO,
+        telegram_user_id=update.effective_user.id)
     update.message.reply_text(get_eaten_calories_text(eaten_calories))
     return start_over(update, context)
 
@@ -333,8 +339,9 @@ def edit_food(update: Update, context: CallbackContext) -> str:
 
 
 def show_eaten_calories(update: Update, context: CallbackContext) -> str:
-    eaten_calories = service.get_eaten_calories_by_date(update.effective_user.id)
-
+    eaten_calories = service.get_eaten_calories_by_date(
+        since_days_ago=SHOW_EATEN_CALORIES_SINCE_DAYS_AGO,
+        telegram_user_id=update.effective_user.id)
     context.bot.send_message(chat_id=update.effective_chat.id, text=get_eaten_calories_text(eaten_calories))
     return start_over(update, context)
 

@@ -17,6 +17,11 @@ class Service:
     def today() -> date:
         return date.today()  # TODO client timezone
 
+    @staticmethod
+    def today_datetime() -> datetime:
+        today = date.today()  # TODO client timezone
+        return datetime.combine(today, datetime.min.time())
+
     def add_weight(self, weight_kilograms: Decimal, telegram_user_id: str) -> List[str]:
         weight = Weight(weight_kilograms, self.now())
         Repository().add_weight(weight, telegram_user_id)
@@ -42,8 +47,9 @@ class Service:
         eaten_portion_food = EatenPortionFood(portion_food, self.now())
         Repository().add_eaten_portion_food(eaten_portion_food, telegram_user_id)
 
-    def get_eaten_calories_by_date(self, telegram_user_id: str) -> dict[date, Decimal]:
-        eaten_foods = Repository().get_eaten_foods(telegram_user_id)
+    def get_eaten_calories_by_date(self, since_days_ago: int, telegram_user_id: str) -> dict[date, Decimal]:
+        since = self.today_datetime() - timedelta(days=since_days_ago) + timedelta(hours=self.START_DATE_OFFSET_HOURS)
+        eaten_foods = Repository().get_eaten_foods(since, telegram_user_id)
         eaten_food_by_date: defaultdict[date, Decimal] = defaultdict[date, Decimal](lambda: Decimal(0))
         for eaten_food in eaten_foods:
             # Calculate eaten calories from 3 AM to 3 AM just in case of late dinner

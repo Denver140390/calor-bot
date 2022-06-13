@@ -113,14 +113,14 @@ class Repository:
               f'\'{eaten_portion_food.added_on}\')'
         self.__connect().cursor().execute(sql).commit()
 
-    def get_eaten_foods(self, telegram_user_id: str) -> List[EatenFood]:
+    def get_eaten_foods(self, since: datetime, telegram_user_id: str) -> List[EatenFood]:
         sql = (f"SELECT Food.Id, Food.Name, Food.CaloriesPer100Grams, Food.CaloriesPerPortion, Food.AddedOn, "
                f"EatenFood.WeightGrams, EatenFood.AddedOn "
                f"FROM dbo.EatenFood "
                f"JOIN Food ON Food.Id = EatenFood.FoodId "
-               f"WHERE EatenFood.TelegramUserId = ? "
+               f"WHERE EatenFood.AddedOn > ? AND EatenFood.TelegramUserId = ? "
                f"ORDER BY EatenFood.AddedOn DESC")
-        eaten_food_rows = self.__connect().cursor().execute(sql, telegram_user_id).fetchall()
+        eaten_food_rows = self.__connect().cursor().execute(sql, since, telegram_user_id).fetchall()
         eaten_weighted_foods: List[EatenFood] = [
             EatenWeightedFood(
                 WeightedFood(row.Id, row.Name, row.AddedOn, row.CaloriesPer100Grams),
