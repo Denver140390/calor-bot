@@ -269,8 +269,8 @@ def enter_food_name(food_name: str, update: Update, context: CallbackContext) ->
             f"I already know {food.name}.",
             reply_markup=InlineKeyboardMarkup(get_add_same_or_eat_or_start_over_keyboard()))
         context.user_data[FOOD_USER_DATA] = food
+        del context.user_data[IS_NEW_FOOD_WITH_SAME_NAME_ALLOWED_USER_DATA]
         return ADD_SAME_OR_EAT_OR_START_OVER
-    del context.user_data[IS_NEW_FOOD_WITH_SAME_NAME_ALLOWED_USER_DATA]
     context.bot.send_message(
         chat_id=update.effective_chat.id,
         text="Food type?",
